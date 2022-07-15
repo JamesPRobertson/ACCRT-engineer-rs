@@ -38,14 +38,10 @@ fn main()-> std::io::Result<()> {
             _statics: json_data["static_data"].clone()
         };
 
-        /*
-        let physics_data: &serde_json::Value = json["physics_data"];
-        let _graphics_data: &serde_json::Value = telemetry["graphics_data"];
-        let _static_data: &serde_json::Value = telemetry["static_data"];
-        */
-
         display_data(telemetry);
-        sleep_for(250);
+
+        socket.send_to("I'm alive!".as_bytes(), IP_ADDR)?; // We COULD check this
+        sleep_for(16); // Roughly 60 Hz
     }
 
     Ok(())
@@ -55,16 +51,21 @@ pub fn sleep_for(time: u64) -> () {
     std::thread::sleep(std::time::Duration::from_millis(time));
 }
 
+// TODO: Get the formatting working
 fn display_data(telemetry: TelemetryData) -> () {
-    println!("{}{}", termion::clear::All, cursor::Goto(0,0));
+    println!("{}{}", termion::clear::All, cursor::Goto(1,1));
     println!("Throttle: {}",   telemetry.physics["gas"]);
     println!("Brake:    {}",   telemetry.physics["brake"]);
-    println!("Fuel:     {} L", telemetry.physics["fuel"]);
-    println!("\n");
-    println!("Speed:    {} kmh", telemetry.physics["speedKmh"]);
-    println!("Gear:     {}",     telemetry.physics["gear"]);
-    println!("RPM:      {}",     telemetry.physics["rpms"]);
-    println!("\n");
-    println!("Tires     {}", telemetry.physics["tyreTemp"]);
+    println!("Fuel:     {0:.1} L", telemetry.physics["fuel"]);
+    println!("");
+    println!("{}Speed:    {data} kmh", cursor::Goto(24, 2), data=telemetry.physics["speedKmh"]);
+    println!("{}Gear:     {data}",     cursor::Goto(24, 3), data=telemetry.physics["gear"]);
+    println!("{}RPM:      {data}",     cursor::Goto(24, 4), data=telemetry.physics["rpms"]);
+    println!("");
+    println!("Tire Temps");
+    println!("{}{}", cursor::Goto(14, 6), telemetry.physics["tyreTemp"][0]);
+    println!("{}{}", cursor::Goto(24, 6), telemetry.physics["tyreTemp"][1]);
+    println!("{}{}", cursor::Goto(14, 8), telemetry.physics["tyreTemp"][2]);
+    println!("{}{}", cursor::Goto(24, 8), telemetry.physics["tyreTemp"][3]);
 }
 
