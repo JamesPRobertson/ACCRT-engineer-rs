@@ -1,6 +1,9 @@
+// James Robertson 2022
+// ACCRT Engineer Rust
+// Main.rs
+//
+
 use std::net::UdpSocket;
-use serde_json;
-//use termion::{cursor, color};
 use termion::cursor;
 
 const BUFFER_SIZE:usize = 8192;
@@ -8,13 +11,15 @@ const IP_ADDR:&str      = "99.129.97.238:9000";
 
 struct TelemetryData {
     physics: serde_json::Value,
-    _graphics: serde_json::Value,
+    graphics: serde_json::Value,
     _statics: serde_json::Value
 }
 
 fn main()-> std::io::Result<()> {
     println!("Beginning server...");
     let socket = UdpSocket::bind("0.0.0.0:9001")?;
+
+    println!("Sending request for data to {}", IP_ADDR);
     socket.send_to("Give me the data!".as_bytes(), IP_ADDR)?;
 
     let check_var = false;
@@ -34,7 +39,7 @@ fn main()-> std::io::Result<()> {
         // There has to be a better way
         let telemetry = TelemetryData {
             physics: json_data["physics_data"].clone(),
-            _graphics: json_data["graphics_data"].clone(),
+            graphics: json_data["graphics_data"].clone(),
             _statics: json_data["static_data"].clone()
         };
 
@@ -54,18 +59,19 @@ pub fn sleep_for(time: u64) -> () {
 // TODO: Get the formatting working
 fn display_data(telemetry: TelemetryData) -> () {
     println!("{}{}", termion::clear::All, cursor::Goto(1,1));
-    println!("Throttle: {}",   telemetry.physics["gas"]);
-    println!("Brake:    {}",   telemetry.physics["brake"]);
-    println!("Fuel:     {0:.1} L", telemetry.physics["fuel"]);
+    println!("Throttle:  {}", telemetry.physics["gas"]);
+    println!("Brake:     {}", telemetry.physics["brake"]);
+    println!("Fuel:      {:.1} L", telemetry.physics["fuel"]);
     println!("");
     println!("{}Speed:    {data} kmh", cursor::Goto(24, 2), data=telemetry.physics["speedKmh"]);
     println!("{}Gear:     {data}",     cursor::Goto(24, 3), data=telemetry.physics["gear"]);
     println!("{}RPM:      {data}",     cursor::Goto(24, 4), data=telemetry.physics["rpms"]);
     println!("");
     println!("Tire Temps");
-    println!("{}{}", cursor::Goto(14, 6), telemetry.physics["tyreTemp"][0]);
+    println!("{}{}", cursor::Goto(14, 6),  telemetry.physics["tyreTemp"][0]);
     println!("{}{}", cursor::Goto(24, 6), telemetry.physics["tyreTemp"][1]);
     println!("{}{}", cursor::Goto(14, 8), telemetry.physics["tyreTemp"][2]);
     println!("{}{}", cursor::Goto(24, 8), telemetry.physics["tyreTemp"][3]);
+    println!("{}Current Lap Time:  {}", cursor::Goto(1, 10), telemetry.graphics["currentTime"]);
 }
 
