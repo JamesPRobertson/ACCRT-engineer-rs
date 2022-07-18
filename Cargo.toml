@@ -6,5 +6,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde_json = { version = "*" }
-termion = { version = "*" }
+crossterm = "0.24.0"
+serde_json = "*"
+tui = "0.18.0"

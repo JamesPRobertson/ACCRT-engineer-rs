@@ -3,11 +3,10 @@
 // Main.rs
 //
 
-use std::net::UdpSocket;
-use termion::cursor;
+use crossterm::{ cursor, terminal };
 
-const BUFFER_SIZE:usize = 8192;
-const IP_ADDR:&str      = "99.129.97.238:9000";
+const BUFFER_SIZE: usize = 8192;
+const IP_ADDR: &str      = "99.129.97.238:9000";
 
 struct TelemetryData {
     physics: serde_json::Value,
@@ -17,7 +16,7 @@ struct TelemetryData {
 
 fn main()-> std::io::Result<()> {
     println!("Beginning server...");
-    let socket = UdpSocket::bind("0.0.0.0:9001")?;
+    let socket = std::net::UdpSocket::bind("0.0.0.0:9001")?;
 
     println!("Sending request for data to {}", IP_ADDR);
     socket.send_to("Give me the data!".as_bytes(), IP_ADDR)?;
@@ -58,20 +57,21 @@ pub fn sleep_for(time: u64) -> () {
 
 // TODO: Get the formatting working
 fn display_data(telemetry: TelemetryData) -> () {
-    println!("{}{}", termion::clear::All, cursor::Goto(1,1));
+    print!("{}{}", terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0,0));
+
     println!("Throttle:  {}", telemetry.physics["gas"]);
     println!("Brake:     {}", telemetry.physics["brake"]);
     println!("Fuel:      {:.1} L", telemetry.physics["fuel"]);
     println!("");
-    println!("{}Speed:    {data} kmh", cursor::Goto(24, 2), data=telemetry.physics["speedKmh"]);
-    println!("{}Gear:     {data}",     cursor::Goto(24, 3), data=telemetry.physics["gear"]);
-    println!("{}RPM:      {data}",     cursor::Goto(24, 4), data=telemetry.physics["rpms"]);
+    println!("{}Speed:    {data} kmh", cursor::MoveTo(24, 0), data=telemetry.physics["speedKmh"]);
+    println!("{}Gear:     {data}",     cursor::MoveTo(24, 1), data=telemetry.physics["gear"]);
+    println!("{}RPM:      {data}",     cursor::MoveTo(24, 2), data=telemetry.physics["rpms"]);
     println!("");
     println!("Tire Temps");
-    println!("{}{}", cursor::Goto(14, 6),  telemetry.physics["tyreTemp"][0]);
-    println!("{}{}", cursor::Goto(24, 6), telemetry.physics["tyreTemp"][1]);
-    println!("{}{}", cursor::Goto(14, 8), telemetry.physics["tyreTemp"][2]);
-    println!("{}{}", cursor::Goto(24, 8), telemetry.physics["tyreTemp"][3]);
-    println!("{}Current Lap Time:  {}", cursor::Goto(1, 10), telemetry.graphics["currentTime"]);
+    println!("{}{}", cursor::MoveTo(14, 5),  telemetry.physics["tyreTemp"][0]);
+    println!("{}{}", cursor::MoveTo(24, 5), telemetry.physics["tyreTemp"][1]);
+    println!("{}{}", cursor::MoveTo(14, 7), telemetry.physics["tyreTemp"][2]);
+    println!("{}{}", cursor::MoveTo(24, 7), telemetry.physics["tyreTemp"][3]);
+    println!("{}Current Lap Time:  {}", cursor::MoveTo(0, 10), telemetry.graphics["currentTime"]);
 }
 
