@@ -6,7 +6,7 @@
 use crossterm::{ cursor, terminal };
 
 mod tui_blocks;
-use crate::tui_blocks::{ Bounds, Tachometer };
+use crate::tui_blocks::*;
 
 const BUFFER_SIZE: usize = 8192;
 const IP_ADDR: &str      = "99.129.97.238:9000";
@@ -24,16 +24,20 @@ fn main()-> std::io::Result<()> {
     println!("Sending request for data to {}", IP_ADDR);
     socket.send_to("Give me the data!".as_bytes(), IP_ADDR)?;
 
-    let my_display: Tachometer = Tachometer {
-        coords: Bounds::new(0,0,0,0),
+    let mut my_display: Tachometer = Tachometer {
+        coords: Bounds::new(0, 0, 0, 0),
         rpm_cur: 0,
         rpm_max: 0,
         gear_char: 0
     };
 
-    let check_var = false;
+    // Convert these to constructor functions?
+    let mut my_tyres : TyreTemps = TyreTemps {
+        coords: Bounds::new(0, 8, 0, 0),
+        tyres:  [0f32, 0f32, 0f32, 0f32]
+    };
 
-    let mut data_ready = false;
+    let check_var = false;
 
     while !check_var {
         // Double check what this line below does
@@ -55,16 +59,17 @@ fn main()-> std::io::Result<()> {
         };
 
         if telemetry.physics["packetId"] != 0 {
-            data_ready = true;
+            my_display.rpm_max = telemetry.statics["maxRpm"].as_u64().unwrap() as u32;
+            print!("{}", terminal::Clear(terminal::ClearType::All));
+            my_tyres.update(&telemetry.physics["tyreTemp"].as_array().unwrap());
+            my_display.update(
+                *&telemetry.physics["rpms"].as_u64().unwrap() as u32,
+                *&telemetry.physics["gear"].as_u64().unwrap() as u8);
+            display_blocks(&my_display, &my_tyres);
         }
         else {
-            data_ready = false;
             print!("{}{}", terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0,0));
             println!("Connection established to {}, waiting for data...", IP_ADDR);
-        }
-
-        if data_ready {
-            display_data(telemetry);
         }
 
         socket.send_to("I'm alive!".as_bytes(), IP_ADDR)?; // We COULD check this
@@ -76,6 +81,11 @@ fn main()-> std::io::Result<()> {
 
 pub fn sleep_for(time: u64) -> () {
     std::thread::sleep(std::time::Duration::from_millis(time));
+}
+
+fn display_blocks(tacho: &Tachometer, tyres: &TyreTemps) -> () {
+    Tachometer::display(tacho);
+    TyreTemps::display(tyres);
 }
 
 // TODO: Get the formatting working
@@ -100,4 +110,6 @@ fn display_data(telemetry: TelemetryData) -> () {
     println!("{}{}", cursor::MoveTo(24, 7), telemetry.physics["tyreTemp"][3]);
     println!("{}Current Lap Time:  {}", cursor::MoveTo(0, 10), telemetry.graphics["currentTime"]);
 }
+
+// TODO: Create an initial setup function for static data
 
