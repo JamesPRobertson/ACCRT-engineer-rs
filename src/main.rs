@@ -68,14 +68,18 @@ fn main()-> std::io::Result<()> {
 
         if telemetry.physics["packetId"] != 0 {
             my_display.rpm_max = telemetry.statics["maxRpm"].as_u64().unwrap() as u32;
+
             print!("{}", terminal::Clear(terminal::ClearType::All));
             my_tyres.update(&telemetry.physics["tyreTemp"].as_array().unwrap());
+            
             my_display.update(
                 *&telemetry.physics["rpms"].as_u64().unwrap() as u32,
                 *&telemetry.physics["gear"].as_u64().unwrap() as u8);
+
             my_times.update(telemetry.graphics["iCurrentTime"].as_u64().unwrap(),
                             telemetry.graphics["iLastTime"].as_u64().unwrap(), 
                             telemetry.graphics["iBestTime"].as_u64().unwrap());
+
             display_blocks(&my_display, &my_tyres, &my_times);
         }
         else {
@@ -100,28 +104,5 @@ fn display_blocks(tacho: &Tachometer, tyres: &TyreTemps, times: &LapTimes) -> ()
     times.display();
 }
 
-// TODO: Get the formatting working
-fn display_data(telemetry: TelemetryData) -> () {
-    print!("{}{}", terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0,0));
-
-    println!("Throttle:  {}", telemetry.physics["gas"]);
-    println!("Brake:     {}", telemetry.physics["brake"]);
-    println!("Fuel:      {:.1} L", telemetry.physics["fuel"]);
-    println!("Speed:     {} kmh", telemetry.physics["speedKmh"]);
-    println!("");
-    /*
-    println!("{}Speed:    {data} kmh", cursor::MoveTo(24, 0), data=telemetry.physics["speedKmh"]);
-    println!("{}Gear:     {data}",     cursor::MoveTo(24, 1), data=telemetry.physics["gear"]);
-    println!("{}RPM:      {data}",     cursor::MoveTo(24, 2), data=telemetry.physics["rpms"]);
-    println!("");
-    */
-    println!("Tire Temps");
-    println!("{}{}", cursor::MoveTo(14, 5), telemetry.physics["tyreTemp"][0]);
-    println!("{}{}", cursor::MoveTo(24, 5), telemetry.physics["tyreTemp"][1]);
-    println!("{}{}", cursor::MoveTo(14, 7), telemetry.physics["tyreTemp"][2]);
-    println!("{}{}", cursor::MoveTo(24, 7), telemetry.physics["tyreTemp"][3]);
-    println!("{}Current Lap Time:  {}", cursor::MoveTo(0, 10), telemetry.graphics["currentTime"]);
-}
-
-// TODO: Create an initial setup function for static data
+// TODO: Create an initial setup function for statics data
 

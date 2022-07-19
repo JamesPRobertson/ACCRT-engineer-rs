@@ -84,13 +84,6 @@ impl Tachometer {
             }
         }
         println!("┃");
-
-        /*
-        println!("{}Bar:  {:?}", 
-                 cursor::MoveTo(self.coords.start_x, self.coords.start_y + 3),
-                 self.rpm_bar);
-        */
-
     }
 }
 
@@ -129,6 +122,7 @@ impl TyreTemps {
     }
 }
 
+// TODO: Switch to using strings
 pub struct LapTimes {
     pub coords: Bounds,
     pub time_cur: u64,
