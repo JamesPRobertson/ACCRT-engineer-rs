@@ -28,12 +28,13 @@ fn main()-> std::io::Result<()> {
         coords: Bounds::new(0, 0, 0, 0),
         rpm_cur: 0,
         rpm_max: 0,
+        rpm_bar: [false; 10],
         gear_char: 0
     };
 
     // Convert these to constructor functions?
     let mut my_tyres : TyreTemps = TyreTemps {
-        coords: Bounds::new(0, 8, 0, 0),
+        coords: Bounds::new(0, 6, 0, 0),
         tyres:  [0f32, 0f32, 0f32, 0f32]
     };
 

@@ -4,7 +4,10 @@
 
 use crossterm::cursor;
 
-#[derive(Debug)]
+const RED_BLOCK: &str = "\x1b[91;1m▉\x1b[31;0m";
+const WHITE_BLOCK: &str ="▉";
+const RPM_BAR_LEN: usize = 10;
+
 pub struct Bounds {
     start_x: u16,
     start_y: u16,
@@ -18,13 +21,12 @@ impl Bounds {
     }
 }
 
-#[derive(Debug)]
 pub struct Tachometer {
     pub coords: Bounds,
     pub rpm_cur: u32,
     pub rpm_max: u32,
+    pub rpm_bar: [bool; RPM_BAR_LEN],
     pub gear_char: u8
-    //tach_display: &str
 }
 
 impl Tachometer {
@@ -37,6 +39,21 @@ impl Tachometer {
         }
 
         self.gear_char = gear_int;
+
+        // This line may be inefficient
+        let mut rpm_percentage = ((self.rpm_cur as f32 / self.rpm_max as f32) * 10.0).ceil() as usize;
+
+        // May be a better way for this
+        if rpm_percentage > self.rpm_bar.len() {
+            rpm_percentage = self.rpm_bar.len() - 1;
+        }
+
+        for i in 0..rpm_percentage as usize {
+            self.rpm_bar[i] = true;
+        }
+        for i in rpm_percentage..self.rpm_bar.len() {
+            self.rpm_bar[i] = false;
+        }
     }
 
     pub fn display(&self) {
@@ -49,11 +66,35 @@ impl Tachometer {
         println!("{}Gear: {}", 
                  cursor::MoveTo(self.coords.start_x, self.coords.start_y + 2),
                  self.gear_char);
+        print!("{}┃", cursor::MoveTo(self.coords.start_x, self.coords.start_y + 4));
+        
+        if self.rpm_bar[RPM_BAR_LEN - 1] == true {
+            for _i in 0..RPM_BAR_LEN - 1 {
+                print!("{}", RED_BLOCK);
+            }
+        }
+        else {
+            for i in 0..(self.rpm_bar.len() - 1) {
+                if self.rpm_bar[i] == true {
+                    print!("{}", WHITE_BLOCK);
+                }
+                else {
+                    print!(" ");
+                }
+            }
+        }
+        println!("┃");
+
+        /*
+        println!("{}Bar:  {:?}", 
+                 cursor::MoveTo(self.coords.start_x, self.coords.start_y + 3),
+                 self.rpm_bar);
+        */
 
     }
 }
 
-#[derive(Debug)]
+//#[derive(Debug)]
 pub struct TyreTemps {
     pub coords: Bounds,
     pub tyres: [f32; 4] // Tyres going clockwise from front left (0) to rear left (3)
@@ -63,17 +104,17 @@ impl TyreTemps {
     pub fn display(&self) {
         print!("{}Tyres:",
                cursor::MoveTo(self.coords.start_x, self.coords.start_y));
-        println!("{}{}", 
-               cursor::MoveTo(self.coords.start_x, self.coords.start_y + 1),
+        println!("{}{:.0}", 
+               cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
                 self.tyres[0]);
-        println!("{}{}", 
-               cursor::MoveTo(self.coords.start_x + 10, self.coords.start_y + 1),
+        println!("{}{:.0}", 
+               cursor::MoveTo(self.coords.start_x + 8, self.coords.start_y + 1),
                 self.tyres[1]);
-        println!("{}{}", 
-               cursor::MoveTo(self.coords.start_x + 10, self.coords.start_y + 3),
+        println!("{}{:.0}", 
+               cursor::MoveTo(self.coords.start_x + 8, self.coords.start_y + 3),
                 self.tyres[2]);
-        println!("{}{}", 
-               cursor::MoveTo(self.coords.start_x, self.coords.start_y + 3),
+        println!("{}{:.0}", 
+               cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 3),
                 self.tyres[3]);
     }
 
@@ -86,4 +127,11 @@ impl TyreTemps {
         self.tyres[2] = temps[2].as_f64().unwrap() as f32;
         self.tyres[3] = temps[3].as_f64().unwrap() as f32;
     }
+}
+
+struct LapTimes {
+    coords: Bounds,
+    time_cur: u64,
+    time_last: u64,
+    time_best: u64
 }
