@@ -60,11 +60,11 @@ impl Tachometer {
         print!("{}Tachometer", 
                cursor::MoveTo(self.coords.start_x, self.coords.start_y));
         println!("{}RPM:  {} / {}",
-                 cursor::MoveTo(self.coords.start_x, self.coords.start_y + 1),
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
                  self.rpm_cur,
                  self.rpm_max);
         println!("{}Gear: {}", 
-                 cursor::MoveTo(self.coords.start_x, self.coords.start_y + 2),
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
                  self.gear_char);
         print!("{}┃", cursor::MoveTo(self.coords.start_x, self.coords.start_y + 4));
         
@@ -129,9 +129,36 @@ impl TyreTemps {
     }
 }
 
-struct LapTimes {
-    coords: Bounds,
-    time_cur: u64,
-    time_last: u64,
-    time_best: u64
+pub struct LapTimes {
+    pub coords: Bounds,
+    pub time_cur: u64,
+    pub time_last: u64,
+    pub time_best: u64
+}
+
+impl LapTimes {
+    pub fn update(&mut self, time_cur: u64, time_last: u64, time_best: u64) {
+        self.time_cur = time_cur;
+
+        if self.time_last != time_last {
+            self.time_last = time_last;
+        }
+        
+        if self.time_best != time_best {
+            self.time_best = time_best;
+        }
+    }
+
+    pub fn display(&self) {
+        println!("{}Lap Times", cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+        println!("{}Current Lap: {}",
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
+                 self.time_cur);
+        println!("{}Last Lap:    {}",
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
+                 self.time_last);
+        println!("{}Best Lap:    {}",
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 3),
+                 self.time_best);
+    }
 }
