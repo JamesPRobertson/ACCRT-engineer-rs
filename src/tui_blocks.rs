@@ -11,13 +11,13 @@ const RPM_BAR_LEN: usize = 10;
 pub struct Bounds {
     start_x: u16,
     start_y: u16,
-    len_x: u32,
-    len_y: u32,
+    _len_x: u32,
+    _len_y: u32,
 }
 
 impl Bounds {
-    pub fn new(start_x: u16, start_y: u16, len_x: u32, len_y: u32) -> Bounds {
-        Bounds {start_x, start_y, len_x, len_y}
+    pub fn new(start_x: u16, start_y: u16, _len_x: u32, _len_y: u32) -> Bounds {
+        Bounds {start_x, start_y, _len_x, _len_y}
     }
 }
 
@@ -84,13 +84,6 @@ impl Tachometer {
             }
         }
         println!("┃");
-
-        /*
-        println!("{}Bar:  {:?}", 
-                 cursor::MoveTo(self.coords.start_x, self.coords.start_y + 3),
-                 self.rpm_bar);
-        */
-
     }
 }
 
@@ -129,23 +122,37 @@ impl TyreTemps {
     }
 }
 
+// TODO: Switch to using strings
 pub struct LapTimes {
     pub coords: Bounds,
-    pub time_cur: u64,
-    pub time_last: u64,
-    pub time_best: u64
+    pub time_cur: String,
+    pub time_last: String,
+    pub time_best: String
 }
 
 impl LapTimes {
-    pub fn update(&mut self, time_cur: u64, time_last: u64, time_best: u64) {
-        self.time_cur = time_cur;
-
-        if self.time_last != time_last {
-            self.time_last = time_last;
+    pub fn update(&mut self, time_cur: Option<&str>, time_last: Option<&str>, time_best: Option<&str>) {
+        match time_cur {
+            Some(s) => self.time_cur = s.to_string(),
+            None => ()
         }
-        
-        if self.time_best != time_best {
-            self.time_best = time_best;
+
+        match time_last {
+            Some(s)=> {
+                if self.time_last != s.to_string() {
+                    self.time_last = s.to_string();
+                }
+            }
+            None => ()
+        }
+
+        match time_best {
+            Some(s)=> {
+                if self.time_best != s.to_string() {
+                    self.time_best = s.to_string();
+                }
+            }
+            None => ()
         }
     }
 

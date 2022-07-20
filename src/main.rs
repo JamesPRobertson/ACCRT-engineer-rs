@@ -24,7 +24,7 @@ fn main()-> std::io::Result<()> {
     println!("Sending request for data to {}", IP_ADDR);
     socket.send_to("Give me the data!".as_bytes(), IP_ADDR)?;
 
-    let mut my_display: Tachometer = Tachometer {
+    let mut block_tach: Tachometer = Tachometer {
         coords: Bounds::new(0, 0, 0, 0),
         rpm_cur: 0,
         rpm_max: 0,
@@ -33,16 +33,16 @@ fn main()-> std::io::Result<()> {
     };
 
     // Convert these to constructor functions?
-    let mut my_tyres: TyreTemps = TyreTemps {
+    let mut block_tyres: TyreTemps = TyreTemps {
         coords: Bounds::new(0, 6, 0, 0),
         tyres:  [0f32, 0f32, 0f32, 0f32]
     };
 
-    let mut my_times: LapTimes = LapTimes {
+    let mut block_times: LapTimes = LapTimes {
         coords: Bounds::new(24, 0, 0, 0),
-        time_cur: 0 as u64,
-        time_last: 0 as u64,
-        time_best: 0 as u64
+        time_cur: String::new(),
+        time_last: String::new(),
+        time_best: String::new()
     };
 
     let check_var = false;
@@ -52,8 +52,7 @@ fn main()-> std::io::Result<()> {
         let mut buffer = [0; BUFFER_SIZE];
         let buf_len: usize = socket.recv(&mut buffer)?;
 
-        // TODO: This actually needs to be handled gracefully
-        //       as sometimes UDP can get mangled.
+        // TODO: This actually needs to be handled gracefully as sometimes UDP can get mangled.
         let json_data: serde_json::Value = match serde_json::from_slice(&buffer[0..buf_len]) {
             Ok(json) => json,
             Err(e)   => panic!("{}", e),
@@ -67,16 +66,20 @@ fn main()-> std::io::Result<()> {
         };
 
         if telemetry.physics["packetId"] != 0 {
-            my_display.rpm_max = telemetry.statics["maxRpm"].as_u64().unwrap() as u32;
+            block_tach.rpm_max = telemetry.statics["maxRpm"].as_u64().unwrap() as u32;
+
             print!("{}", terminal::Clear(terminal::ClearType::All));
-            my_tyres.update(&telemetry.physics["tyreTemp"].as_array().unwrap());
-            my_display.update(
+            block_tyres.update(&telemetry.physics["tyreTemp"].as_array().unwrap());
+            
+            block_tach.update(
                 *&telemetry.physics["rpms"].as_u64().unwrap() as u32,
                 *&telemetry.physics["gear"].as_u64().unwrap() as u8);
-            my_times.update(telemetry.graphics["iCurrentTime"].as_u64().unwrap(),
-                            telemetry.graphics["iLastTime"].as_u64().unwrap(), 
-                            telemetry.graphics["iBestTime"].as_u64().unwrap());
-            display_blocks(&my_display, &my_tyres, &my_times);
+
+            block_times.update(telemetry.graphics["currentTime"].as_str(),
+                            telemetry.graphics["lastTime"].as_str(), 
+                            telemetry.graphics["bestTime"].as_str());
+
+            display_blocks(&block_tach, &block_tyres, &block_times);
         }
         else {
             print!("{}{}", terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0,0));
@@ -100,28 +103,5 @@ fn display_blocks(tacho: &Tachometer, tyres: &TyreTemps, times: &LapTimes) -> ()
     times.display();
 }
 
-// TODO: Get the formatting working
-fn display_data(telemetry: TelemetryData) -> () {
-    print!("{}{}", terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0,0));
-
-    println!("Throttle:  {}", telemetry.physics["gas"]);
-    println!("Brake:     {}", telemetry.physics["brake"]);
-    println!("Fuel:      {:.1} L", telemetry.physics["fuel"]);
-    println!("Speed:     {} kmh", telemetry.physics["speedKmh"]);
-    println!("");
-    /*
-    println!("{}Speed:    {data} kmh", cursor::MoveTo(24, 0), data=telemetry.physics["speedKmh"]);
-    println!("{}Gear:     {data}",     cursor::MoveTo(24, 1), data=telemetry.physics["gear"]);
-    println!("{}RPM:      {data}",     cursor::MoveTo(24, 2), data=telemetry.physics["rpms"]);
-    println!("");
-    */
-    println!("Tire Temps");
-    println!("{}{}", cursor::MoveTo(14, 5), telemetry.physics["tyreTemp"][0]);
-    println!("{}{}", cursor::MoveTo(24, 5), telemetry.physics["tyreTemp"][1]);
-    println!("{}{}", cursor::MoveTo(14, 7), telemetry.physics["tyreTemp"][2]);
-    println!("{}{}", cursor::MoveTo(24, 7), telemetry.physics["tyreTemp"][3]);
-    println!("{}Current Lap Time:  {}", cursor::MoveTo(0, 10), telemetry.graphics["currentTime"]);
-}
-
-// TODO: Create an initial setup function for static data
+// TODO: Create an initial setup function for statics data
 
