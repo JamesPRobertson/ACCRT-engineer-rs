@@ -24,26 +24,10 @@ fn main()-> std::io::Result<()> {
     println!("Sending request for data to {}", IP_ADDR);
     socket.send_to("Give me the data!".as_bytes(), IP_ADDR)?;
 
-    let mut block_tach: Tachometer = Tachometer {
-        coords: Bounds::new(0, 0, 0, 0),
-        rpm_cur: 0,
-        rpm_max: 0,
-        rpm_bar: [false; 10],
-        gear_char: 0
-    };
-
-    // Convert these to constructor functions?
-    let mut block_tyres: TyreTemps = TyreTemps {
-        coords: Bounds::new(0, 6, 0, 0),
-        tyres:  [0f32, 0f32, 0f32, 0f32]
-    };
-
-    let mut block_times: LapTimes = LapTimes {
-        coords: Bounds::new(24, 0, 0, 0),
-        time_cur: String::new(),
-        time_last: String::new(),
-        time_best: String::new()
-    };
+    let mut block_tach  = Tachometer::new(0, 0);
+    let mut block_tyres = TyreTemps::new(0, 6);
+    let mut block_times = LapTimes::new(24, 0);
+    let mut block_thermometer = Thermometer::new(24, 6);
 
     let check_var = false;
 
@@ -71,15 +55,18 @@ fn main()-> std::io::Result<()> {
             print!("{}", terminal::Clear(terminal::ClearType::All));
             block_tyres.update(&telemetry.physics["tyreTemp"].as_array().unwrap());
             
-            block_tach.update(
-                *&telemetry.physics["rpms"].as_u64().unwrap() as u32,
-                *&telemetry.physics["gear"].as_u64().unwrap() as u8);
+            block_tach.update(*&telemetry.physics["rpms"].as_u64().unwrap() as u32,
+                              *&telemetry.physics["gear"].as_u64().unwrap() as u8);
 
             block_times.update(telemetry.graphics["currentTime"].as_str(),
-                            telemetry.graphics["lastTime"].as_str(), 
-                            telemetry.graphics["bestTime"].as_str());
+                               telemetry.graphics["lastTime"].as_str(), 
+                               telemetry.graphics["bestTime"].as_str());
 
-            display_blocks(&block_tach, &block_tyres, &block_times);
+            block_thermometer.update(telemetry.physics["roadTemp"].as_f64().unwrap(),
+                                     telemetry.physics["airTemp"].as_f64().unwrap());
+            
+
+            display_blocks(&block_tach, &block_tyres, &block_times, &block_thermometer);
         }
         else {
             print!("{}{}", terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0,0));
@@ -97,10 +84,14 @@ pub fn sleep_for(time: u64) -> () {
     std::thread::sleep(std::time::Duration::from_millis(time));
 }
 
-fn display_blocks(tacho: &Tachometer, tyres: &TyreTemps, times: &LapTimes) -> () {
+fn display_blocks(tacho: &Tachometer,
+                  tyres: &TyreTemps,
+                  times: &LapTimes,
+                  therm: &Thermometer) {
     tacho.display();
     tyres.display();
     times.display();
+    therm.display();
 }
 
 // TODO: Create an initial setup function for statics data
