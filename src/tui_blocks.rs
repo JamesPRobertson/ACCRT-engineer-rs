@@ -30,6 +30,16 @@ pub struct Tachometer {
 }
 
 impl Tachometer {
+    pub fn new(x: u16, y: u16) -> Tachometer {
+        return Tachometer {
+            coords: Bounds::new(x, y, 0, 0),
+            rpm_cur: 0,
+            rpm_max: 0,
+            rpm_bar: [false; RPM_BAR_LEN],
+            gear_char: 0
+        }
+    }
+    
     pub fn update(&mut self, rpm_cur: u32, mut gear_int: u8) {
         self.rpm_cur = rpm_cur;
 
@@ -87,13 +97,19 @@ impl Tachometer {
     }
 }
 
-//#[derive(Debug)]
 pub struct TyreTemps {
     pub coords: Bounds,
     pub tyres: [f32; 4] // Tyres going clockwise from front left (0) to rear left (3)
 }
 
 impl TyreTemps {
+    pub fn new(x: u16, y: u16) -> TyreTemps {
+        return TyreTemps {
+            coords: Bounds::new(x, y, 0, 0),
+            tyres: [0 as f32; 4]
+        }
+    }
+
     pub fn display(&self) {
         print!("{}Tyres:",
                cursor::MoveTo(self.coords.start_x, self.coords.start_y));
@@ -122,7 +138,6 @@ impl TyreTemps {
     }
 }
 
-// TODO: Switch to using strings
 pub struct LapTimes {
     pub coords: Bounds,
     pub time_cur: String,
@@ -131,6 +146,15 @@ pub struct LapTimes {
 }
 
 impl LapTimes {
+    pub fn new(x: u16, y: u16) -> LapTimes {
+        return LapTimes {
+            coords: Bounds::new(x, y, 0, 0),
+            time_cur: String::new(),
+            time_last: String::new(),
+            time_best: String::new()
+        }
+    }
+
     pub fn update(&mut self, time_cur: Option<&str>, time_last: Option<&str>, time_best: Option<&str>) {
         match time_cur {
             Some(s) => self.time_cur = s.to_string(),
@@ -167,5 +191,36 @@ impl LapTimes {
         println!("{}Best Lap:    {}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 3),
                  self.time_best);
+    }
+}
+
+pub struct Thermometer {
+    pub coords: Bounds,
+    pub temp_track: f64,
+    pub temp_air: f64
+}
+
+impl Thermometer {
+    pub fn new(x: u16, y: u16) -> Thermometer {
+        return Thermometer {
+            coords: Bounds::new(x, y, 0, 0),
+            temp_track: 0 as f64,
+            temp_air: 0 as f64
+        }
+    }
+
+    pub fn update(&mut self, track: f64, air: f64) {
+        self.temp_track = track;
+        self.temp_air = air;
+    }
+
+    pub fn display(&self) {
+        println!("{}Thermometer", cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+        println!("{}Track Temp: {:.1}",
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
+                 self.temp_track);
+        println!("{}Air Temp:   {:.1}",
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
+                 self.temp_air);
     }
 }
