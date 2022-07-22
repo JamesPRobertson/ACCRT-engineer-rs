@@ -8,6 +8,14 @@ const RED_BLOCK: &str = "\x1b[91;1m▉\x1b[31;0m";
 const WHITE_BLOCK: &str ="▉";
 const RPM_BAR_LEN: usize = 0x10;
 
+const COLOR_RESET: &str = "\x1b[31;0m";
+
+const TYRE_TEMP_COLD: &str = "\x1b[96;1m";
+const TYRE_TEMP_OPTIMAL: &str = "\x1b[92;1m";
+const TYRE_TEMP_WARNING: &str = "\x1b[93;1m";
+const TYRE_TEMP_TOO_HOT: &str = "\x1b[91;1m";
+
+
 pub struct Bounds {
     start_x: u16,
     start_y: u16,
@@ -108,14 +116,14 @@ impl Tachometer {
 
 pub struct TyreTemps {
     pub coords: Bounds,
-    pub tyres: [f32; 4] // Tyres going clockwise from front left (0) to rear left (3)
+    pub tyres: [f64; 4] // Tyres going clockwise from front left (0) to rear left (3)
 }
 
 impl TyreTemps {
     pub fn new(x: u16, y: u16) -> TyreTemps {
         return TyreTemps {
             coords: Bounds::new(x, y, 0, 0),
-            tyres: [0 as f32; 4]
+            tyres: [0 as f64; 4]
         }
     }
 
@@ -136,14 +144,17 @@ impl TyreTemps {
                 self.tyres[3]);
     }
 
+    /*
+    fn print_tyre_with_offset(&self, x_offset: u32, y_offset: u32) {
+        
+    }
+    */
+
     // TODO: do this more smartly
     pub fn update(&mut self, temps: &Vec<serde_json::Value>) {
-        //this.tyres = temps;
-        
-        self.tyres[0] = temps[0].as_f64().unwrap() as f32;
-        self.tyres[1] = temps[1].as_f64().unwrap() as f32;
-        self.tyres[2] = temps[2].as_f64().unwrap() as f32;
-        self.tyres[3] = temps[3].as_f64().unwrap() as f32;
+        for i in 0..self.tyres.len() {
+            self.tyres[i] = temps[i].as_f64().unwrap();
+        }
     }
 }
 
