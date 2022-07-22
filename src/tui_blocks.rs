@@ -10,10 +10,15 @@ const RPM_BAR_LEN: usize = 0x10;
 
 const COLOR_RESET: &str = "\x1b[31;0m";
 
-const TYRE_TEMP_COLD: &str = "\x1b[96;1m";
-const TYRE_TEMP_OPTIMAL: &str = "\x1b[92;1m";
-const TYRE_TEMP_WARNING: &str = "\x1b[93;1m";
-const TYRE_TEMP_TOO_HOT: &str = "\x1b[91;1m";
+const TYRE_COLOR_COLD: &str = "\x1b[96;1m";
+const TYRE_COLOR_OPTIMAL: &str = "\x1b[92;1m";
+const TYRE_COLOR_WARNING: &str = "\x1b[93;1m";
+const TYRE_COLOR_TOO_HOT: &str = "\x1b[91;1m";
+
+// TODO: These are rough estimates
+const TYRE_NUM_COLD: f64 = 72.0;
+const TYRE_NUM_OPTIMAL: f64 = 92.0;
+const TYRE_NUM_WARNING: f64 = 100.0;
 
 
 pub struct Bounds {
@@ -30,11 +35,11 @@ impl Bounds {
 }
 
 pub struct Tachometer {
-    pub coords: Bounds,
-    pub rpm_cur: u32,
-    pub rpm_max: u32,
-    pub rpm_bar: [bool; RPM_BAR_LEN],
-    pub gear_char: u8
+    coords: Bounds,
+    rpm_cur: u32,
+    pub rpm_max: u64, // This is public until the static init function is written in main.rs
+    rpm_bar: [bool; RPM_BAR_LEN],
+    gear_char: u8
 }
 
 impl Tachometer {
@@ -115,8 +120,8 @@ impl Tachometer {
 }
 
 pub struct TyreTemps {
-    pub coords: Bounds,
-    pub tyres: [f64; 4] // Tyres going clockwise from front left (0) to rear left (3)
+    coords: Bounds,
+    tyres: [f64; 4] // Tyres going clockwise from front left (0) to rear left (3)
 }
 
 impl TyreTemps {
@@ -130,27 +135,38 @@ impl TyreTemps {
     pub fn display(&self) {
         print!("{}Tyres:",
                cursor::MoveTo(self.coords.start_x, self.coords.start_y));
-        println!("{}{:.0}", 
-               cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
-                self.tyres[0]);
-        println!("{}{:.0}", 
-               cursor::MoveTo(self.coords.start_x + 8, self.coords.start_y + 1),
-                self.tyres[1]);
-        println!("{}{:.0}", 
-               cursor::MoveTo(self.coords.start_x + 8, self.coords.start_y + 3),
-                self.tyres[2]);
-        println!("{}{:.0}", 
-               cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 3),
-                self.tyres[3]);
+
+        // TODO: Can we iterate over the tyres somehow?
+        self.print_tyre_with_offset(2, 1, 0);
+        self.print_tyre_with_offset(8, 1, 1);
+        self.print_tyre_with_offset(8, 3, 2);
+        self.print_tyre_with_offset(2, 3, 3);
     }
 
-    /*
-    fn print_tyre_with_offset(&self, x_offset: u32, y_offset: u32) {
-        
-    }
-    */
+    fn print_tyre_with_offset(&self, x_offset: u16, y_offset: u16, tyre_index: usize) {
+        let text_color: &str;
+        if self.tyres[tyre_index] < TYRE_NUM_COLD {
+            text_color = TYRE_COLOR_COLD;
+        }
+        else if self.tyres[tyre_index] < TYRE_NUM_OPTIMAL {
+            text_color = TYRE_COLOR_OPTIMAL;
+        }
+        else if self.tyres[tyre_index] < TYRE_NUM_WARNING {
+            text_color = TYRE_COLOR_WARNING;
+        }
+        else {
+            text_color = TYRE_COLOR_TOO_HOT;
+        }
 
-    // TODO: do this more smartly
+        println!("{}{}{:.0}{}", 
+                 cursor::MoveTo(self.coords.start_x + x_offset,
+                                self.coords.start_y + y_offset),
+                 text_color,
+                 self.tyres[tyre_index],
+                 COLOR_RESET);
+    }
+
+    // TODO: Can still do this better
     pub fn update(&mut self, temps: &Vec<serde_json::Value>) {
         for i in 0..self.tyres.len() {
             self.tyres[i] = temps[i].as_f64().unwrap();
@@ -159,10 +175,10 @@ impl TyreTemps {
 }
 
 pub struct LapTimes {
-    pub coords: Bounds,
-    pub time_cur: String,
-    pub time_last: String,
-    pub time_best: String
+    coords: Bounds,
+    time_cur: String,
+    time_last: String,
+    time_best: String
 }
 
 impl LapTimes {
@@ -215,9 +231,9 @@ impl LapTimes {
 }
 
 pub struct Thermometer {
-    pub coords: Bounds,
-    pub temp_track: f64,
-    pub temp_air: f64
+    coords: Bounds,
+    temp_track: f64,
+    temp_air: f64
 }
 
 impl Thermometer {
