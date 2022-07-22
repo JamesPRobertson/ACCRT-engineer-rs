@@ -6,7 +6,7 @@ use crossterm::cursor;
 
 const RED_BLOCK: &str = "\x1b[91;1m▉\x1b[31;0m";
 const WHITE_BLOCK: &str ="▉";
-const RPM_BAR_LEN: usize = 10;
+const RPM_BAR_LEN: usize = 0x10;
 
 pub struct Bounds {
     start_x: u16,
@@ -50,8 +50,9 @@ impl Tachometer {
 
         self.gear_char = gear_int;
 
-        // This line may be inefficient
-        let mut rpm_percentage = ((self.rpm_cur as f32 / self.rpm_max as f32) * 10.0).ceil() as usize;
+        let mut rpm_percentage = ((self.rpm_cur as f32 /
+                                   self.rpm_max as f32)
+                                  * RPM_BAR_LEN as f32).ceil() as usize;
 
         // May be a better way for this
         if rpm_percentage > self.rpm_bar.len() {
@@ -76,7 +77,15 @@ impl Tachometer {
         println!("{}Gear: {}", 
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
                  self.gear_char);
-        print!("{}┃", cursor::MoveTo(self.coords.start_x, self.coords.start_y + 4));
+
+        self.print_rpm_bar();
+    }
+
+    fn print_rpm_bar(&self) {
+        let tachometer_end: &str = "┃";
+
+        print!("{}{}", cursor::MoveTo(self.coords.start_x, self.coords.start_y + 4),
+                       tachometer_end);
         
         if self.rpm_bar[RPM_BAR_LEN - 1] == true {
             for _i in 0..RPM_BAR_LEN - 1 {
@@ -93,7 +102,7 @@ impl Tachometer {
                 }
             }
         }
-        println!("┃");
+        println!("{}", tachometer_end);
     }
 }
 
