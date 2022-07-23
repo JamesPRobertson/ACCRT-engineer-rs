@@ -34,7 +34,7 @@ fn main()-> std::io::Result<()> {
     socket.send_to("Give me the data!".as_bytes(), server_ip_addr)?;
 
     let mut heartbeat = std::time::SystemTime::now();
-
+    
     let mut block_tach  = Tachometer::new(0, 0);
     let mut block_tyres = TyreTemps::new(0, 6);
     let mut block_times = LapTimes::new(24, 0);
@@ -55,21 +55,9 @@ fn main()-> std::io::Result<()> {
         };
 
         if telemetry.physics["packetId"] != 0 {
-            block_tach.set_rpm_max(&telemetry.statics["maxRpm"]);
-
-            print!("{}", terminal::Clear(terminal::ClearType::All));
-            block_tyres.update(&telemetry.physics["tyreTemp"].as_array().unwrap());
-            
-            block_tach.update(*&telemetry.physics["rpms"].as_u64().unwrap() as u32,
-                              *&telemetry.physics["gear"].as_u64().unwrap() as u8);
-
-            block_times.update(telemetry.graphics["currentTime"].as_str(),
-                               telemetry.graphics["lastTime"].as_str(), 
-                               telemetry.graphics["bestTime"].as_str());
-
-            block_thermometer.update(telemetry.physics["roadTemp"].as_f64().unwrap(),
-                                     telemetry.physics["airTemp"].as_f64().unwrap());
-            
+            for block in blocks {
+                block.update(&telemetry);
+            }
 
             display_blocks(&block_tach, &block_tyres, &block_times, &block_thermometer);
         }

@@ -21,6 +21,11 @@ const TYRE_NUM_OPTIMAL: f64 = 92.0;
 const TYRE_NUM_WARNING: f64 = 100.0;
 
 
+pub trait TUIBlock {
+    fn update(&self, telemetry: &serde_json::Value);
+    fn display(&mut self);
+}
+
 pub struct Bounds {
     start_x: u16,
     start_y: u16,
