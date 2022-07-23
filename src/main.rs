@@ -9,8 +9,8 @@ mod tui_blocks;
 use crate::tui_blocks::*;
 
 const BUFFER_SIZE: usize = 8192;
-const IP_ADDR: &str      = "99.129.97.238:9000";
 const HEARTBEAT_DELTA_IN_MS: std::time::Duration = std::time::Duration::from_millis(2000);
+const LISTEN_IP_ADDR_PORT: &str = "0.0.0.0:9001";
 
 struct TelemetryData {
     physics: serde_json::Value,
@@ -19,11 +19,19 @@ struct TelemetryData {
 }
 
 fn main()-> std::io::Result<()> {
-    println!("Beginning server...");
-    let socket = std::net::UdpSocket::bind("0.0.0.0:9001")?;
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        println!("No IP Address supplied as an argument. Exiting...");
+        std::process::exit(1);
+    }
 
-    println!("Sending request for data to {}", IP_ADDR);
-    socket.send_to("Give me the data!".as_bytes(), IP_ADDR)?;
+    let server_ip_addr = &args[1];
+
+    println!("Beginning server...");
+    let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT)?;
+
+    println!("Sending request for data to {}", server_ip_addr);
+    socket.send_to("Give me the data!".as_bytes(), server_ip_addr)?;
 
     let mut heartbeat = std::time::SystemTime::now();
 
@@ -67,7 +75,7 @@ fn main()-> std::io::Result<()> {
         }
         else {
             print!("{}{}", terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0,0));
-            println!("Connection established to {}, waiting for data...", IP_ADDR);
+            println!("Connection established to {}, waiting for data...", server_ip_addr);
         }
 
         heartbeat = send_heartbeat_to_server(&socket, heartbeat);
