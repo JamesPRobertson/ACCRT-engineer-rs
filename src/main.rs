@@ -42,7 +42,9 @@ fn main()-> std::io::Result<()> {
     
 
     //let blocks: Vec<Box<dyn tui_blocks::TUIBlock>> = init_vector();
-    let mut blocks = vec![Box::new(tui_blocks::Tachometer::new(0,0))];
+    let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
+        Box::new(tui_blocks::Tachometer::new(0,0)),
+        Box::new(tui_blocks::TyreTemps::new(0,6))];
 
     /* Only here for the offsets
     let mut block_tach  = Tachometer::new(0, 0);
@@ -57,15 +59,17 @@ fn main()-> std::io::Result<()> {
 
     while !check_var {
         let telemetry = get_telemetry_from_connection(&socket);
+        println!("{}", terminal::Clear(terminal::ClearType::All));
 
         if telemetry.physics["packetId"] != 0 {
+
             for block in blocks.iter_mut() {
                 block.update(&telemetry.physics, &telemetry.graphics);
                 block.display();
             }
         }
         else {
-            print!("{}{}", terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0,0));
+            println!("{}", cursor::MoveTo(0,0));
             println!("Connection established to {}, waiting for data...", TEMP_IP_ADDR);
         }
 

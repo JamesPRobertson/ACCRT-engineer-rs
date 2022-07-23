@@ -154,17 +154,6 @@ impl TyreTemps {
         }
     }
 
-    pub fn display(&self) {
-        print!("{}Tyres:",
-               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
-
-        // TODO: Can we iterate over the tyres somehow?
-        self.print_tyre_with_offset(2, 1, 0);
-        self.print_tyre_with_offset(8, 1, 1);
-        self.print_tyre_with_offset(8, 3, 2);
-        self.print_tyre_with_offset(2, 3, 3);
-    }
-
     fn print_tyre_with_offset(&self, x_offset: u16, y_offset: u16, tyre_index: usize) {
         let text_color: &str;
         if self.tyres[tyre_index] < TYRE_NUM_COLD {
@@ -187,12 +176,35 @@ impl TyreTemps {
                  self.tyres[tyre_index],
                  COLOR_RESET);
     }
+}
 
-    // TODO: Can still do this better
-    pub fn update(&mut self, temps: &Vec<serde_json::Value>) {
+impl TUIBlock for TyreTemps {
+    fn display(&self) {
+        print!("{}Tyres:",
+               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+
+        // TODO: Can we iterate over the tyres somehow?
+        //       if we do, the tyres will have to become
+        //       their own structs and know their offsets
+        self.print_tyre_with_offset(2, 1, 0);
+        self.print_tyre_with_offset(8, 1, 1);
+        self.print_tyre_with_offset(8, 3, 2);
+        self.print_tyre_with_offset(2, 3, 3);
+    }
+
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
+        let temps = match physics["tyreTemp"].as_array() {
+            Some(arr) => arr,
+            None => { return; }
+        };
+
         for i in 0..self.tyres.len() {
             self.tyres[i] = temps[i].as_f64().unwrap();
         }
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
     }
 }
 
