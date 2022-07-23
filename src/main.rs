@@ -44,7 +44,7 @@ fn main()-> std::io::Result<()> {
     //let blocks: Vec<Box<dyn tui_blocks::TUIBlock>> = init_vector();
     let mut blocks = vec![Box::new(tui_blocks::Tachometer::new(0,0))];
 
-    /*
+    /* Only here for the offsets
     let mut block_tach  = Tachometer::new(0, 0);
     let mut block_tyres = TyreTemps::new(0, 6);
     let mut block_times = LapTimes::new(24, 0);
@@ -59,12 +59,7 @@ fn main()-> std::io::Result<()> {
         let telemetry = get_telemetry_from_connection(&socket);
 
         if telemetry.physics["packetId"] != 0 {
-            for i in 0..blocks.len() {
-                let block = match blocks.get_mut(i) {
-                    Some(val) => val,
-                    None => { panic!("Out of bounds!") }
-                };
-
+            for block in blocks.iter_mut() {
                 block.update(&telemetry.physics, &telemetry.graphics);
                 block.display();
             }
