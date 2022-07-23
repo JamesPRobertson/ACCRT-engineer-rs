@@ -10,6 +10,7 @@ use crate::tui_blocks::*;
 
 const BUFFER_SIZE: usize = 8192;
 const IP_ADDR: &str      = "99.129.97.238:9000";
+const HEARTBEAT_DELTA_IN_MS: std::time::Duration = std::time::Duration::from_millis(2000);
 
 struct TelemetryData {
     physics: serde_json::Value,
@@ -24,23 +25,19 @@ fn main()-> std::io::Result<()> {
     println!("Sending request for data to {}", IP_ADDR);
     socket.send_to("Give me the data!".as_bytes(), IP_ADDR)?;
 
+    let mut heartbeat = std::time::SystemTime::now();
+
     let mut block_tach  = Tachometer::new(0, 0);
     let mut block_tyres = TyreTemps::new(0, 6);
     let mut block_times = LapTimes::new(24, 0);
     let mut block_thermometer = Thermometer::new(24, 6);
 
+    // This check_var is to satisfy the compiler's dead code warning
+    // until we can get a keystroke to kill the program
     let check_var = false;
 
     while !check_var {
-        // Double check what this line below does
-        let mut buffer = [0; BUFFER_SIZE];
-        let buf_len: usize = socket.recv(&mut buffer)?;
-
-        // TODO: This actually needs to be handled gracefully as sometimes UDP can get mangled.
-        let json_data: serde_json::Value = match serde_json::from_slice(&buffer[0..buf_len]) {
-            Ok(json) => json,
-            Err(e)   => panic!("{}", e),
-        };
+        let json_data = get_json_from_connection(&socket);
 
         // There has to be a better way
         let telemetry = TelemetryData {
@@ -50,7 +47,7 @@ fn main()-> std::io::Result<()> {
         };
 
         if telemetry.physics["packetId"] != 0 {
-            block_tach.rpm_max = telemetry.statics["maxRpm"].as_u64().unwrap() as u32;
+            block_tach.set_rpm_max(&telemetry.statics["maxRpm"]);
 
             print!("{}", terminal::Clear(terminal::ClearType::All));
             block_tyres.update(&telemetry.physics["tyreTemp"].as_array().unwrap());
@@ -73,25 +70,56 @@ fn main()-> std::io::Result<()> {
             println!("Connection established to {}, waiting for data...", IP_ADDR);
         }
 
-        socket.send_to("I'm alive!".as_bytes(), IP_ADDR)?; // We COULD check this
+        heartbeat = send_heartbeat_to_server(&socket, heartbeat);
         sleep_for(16); // Roughly 60 Hz
     }
 
     Ok(())
 }
 
-pub fn sleep_for(time: u64) -> () {
+fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
+                            heartbeat: std::time::SystemTime) -> std::time::SystemTime {
+    let current_time = std::time::SystemTime::now();
+    let mut new_heartbeat = heartbeat;
+
+    if current_time.duration_since(heartbeat).unwrap() > HEARTBEAT_DELTA_IN_MS {
+        socket.send_to("I'm alive!".as_bytes(), IP_ADDR).unwrap();
+        new_heartbeat = current_time;
+    }
+
+    return new_heartbeat;
+}
+
+/// Wrapper function for Thread Sleep call for simplicity
+fn sleep_for(time: u64) {
     std::thread::sleep(std::time::Duration::from_millis(time));
 }
 
-fn display_blocks(tacho: &Tachometer,
-                  tyres: &TyreTemps,
-                  times: &LapTimes,
-                  therm: &Thermometer) {
+fn display_blocks(tacho: &Tachometer, tyres: &TyreTemps,
+                  times: &LapTimes,   therm: &Thermometer) {
     tacho.display();
     tyres.display();
     times.display();
     therm.display();
+}
+
+fn get_json_from_connection(socket: &std::net::UdpSocket) -> serde_json::Value {
+    // For the moment, this function will panic if it encounters an error.
+    // This will be fixed when a better method for dealing with errors
+    // is learned.
+    let mut buffer = [0; BUFFER_SIZE];
+    let buf_len: usize = match socket.recv(&mut buffer) {
+        Ok(buf_size) => buf_size,
+        Err(e)       => panic!("{}", e)
+    };
+
+    // TODO: This actually needs to be handled gracefully as sometimes UDP can get mangled.
+    let json_data: serde_json::Value = match serde_json::from_slice(&buffer[0..buf_len]) {
+        Ok(json) => json,
+        Err(e)   => panic!("{}", e)
+    };
+
+    return json_data;
 }
 
 // TODO: Create an initial setup function for statics data
