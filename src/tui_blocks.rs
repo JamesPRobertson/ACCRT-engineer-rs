@@ -37,7 +37,7 @@ impl Bounds {
 pub struct Tachometer {
     coords: Bounds,
     rpm_cur: u32,
-    pub rpm_max: u64, // This is public until the static init function is written in main.rs
+    rpm_max: u64, // This is public until the static init function is written in main.rs
     rpm_bar: [bool; RPM_BAR_LEN],
     gear_char: u8
 }
@@ -116,6 +116,13 @@ impl Tachometer {
             }
         }
         println!("{}", tachometer_end);
+    }
+
+    pub fn set_rpm_max(& mut self, rpm_max: &serde_json::Value) {
+        self.rpm_max = match rpm_max.as_u64() {
+            Some(num) => num,
+            None      => 0 as u64
+        }
     }
 }
 

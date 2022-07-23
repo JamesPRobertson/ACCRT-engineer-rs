@@ -47,7 +47,7 @@ fn main()-> std::io::Result<()> {
         };
 
         if telemetry.physics["packetId"] != 0 {
-            block_tach.rpm_max = telemetry.statics["maxRpm"].as_u64().unwrap();
+            block_tach.set_rpm_max(&telemetry.statics["maxRpm"]);
 
             print!("{}", terminal::Clear(terminal::ClearType::All));
             block_tyres.update(&telemetry.physics["tyreTemp"].as_array().unwrap());
