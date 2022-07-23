@@ -32,9 +32,6 @@ fn main()-> std::io::Result<()> {
     };
     */
 
-    //let blocks: Vec<Box<dyn tui_blocks::TUIBlock>> = init_vector();
-    let mut blocks = vec![Box::new(tui_blocks::Tachometer::new(0,0))];
-
     println!("Beginning server...");
     let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT)?;
 
@@ -43,6 +40,10 @@ fn main()-> std::io::Result<()> {
 
     let mut heartbeat = std::time::SystemTime::now();
     
+
+    //let blocks: Vec<Box<dyn tui_blocks::TUIBlock>> = init_vector();
+    let mut blocks = vec![Box::new(tui_blocks::Tachometer::new(0,0))];
+
     /*
     let mut block_tach  = Tachometer::new(0, 0);
     let mut block_tyres = TyreTemps::new(0, 6);
@@ -55,14 +56,7 @@ fn main()-> std::io::Result<()> {
     let check_var = false;
 
     while !check_var {
-        let json_data = get_json_from_connection(&socket);
-
-        // There has to be a better way
-        let telemetry = TelemetryData {
-            physics: json_data["physics_data"].clone(),
-            graphics: json_data["graphics_data"].clone(),
-            statics: json_data["static_data"].clone()
-        };
+        let telemetry = get_telemetry_from_connection(&socket);
 
         if telemetry.physics["packetId"] != 0 {
             for i in 0..blocks.len() {
@@ -121,7 +115,7 @@ fn sleep_for(time: u64) {
     std::thread::sleep(std::time::Duration::from_millis(time));
 }
 
-fn get_json_from_connection(socket: &std::net::UdpSocket) -> serde_json::Value {
+fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> TelemetryData {
     // For the moment, this function will panic if it encounters an error.
     // This will be fixed when a better method for dealing with errors
     // is learned.
@@ -137,7 +131,13 @@ fn get_json_from_connection(socket: &std::net::UdpSocket) -> serde_json::Value {
         Err(e)   => panic!("{}", e)
     };
 
-    return json_data;
+    let telemetry = TelemetryData {
+        physics: json_data["physics_data"].clone(),
+        graphics: json_data["graphics_data"].clone(),
+        statics: json_data["static_data"].clone()
+    };
+
+    return telemetry;
 }
 
 // TODO: Create an initial setup function for statics data
