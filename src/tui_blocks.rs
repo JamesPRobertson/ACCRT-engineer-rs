@@ -288,13 +288,22 @@ impl Thermometer {
             temp_air: 0 as f64
         }
     }
+}
 
-    pub fn update(&mut self, track: f64, air: f64) {
-        self.temp_track = track;
-        self.temp_air = air;
+impl TUIBlock for Thermometer {
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
+        self.temp_track = match physics["roadTemp"].as_f64() {
+            Some(val) => val,
+            None => self.temp_track
+        };
+
+        self.temp_air = match physics["airTemp"].as_f64() {
+            Some(val) => val,
+            None => self.temp_air
+        };
     }
 
-    pub fn display(&self) {
+    fn display(&self) {
         println!("{}Thermometer", cursor::MoveTo(self.coords.start_x, self.coords.start_y));
         println!("{}Track Temp: {:.1}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
@@ -302,5 +311,9 @@ impl Thermometer {
         println!("{}Air Temp:   {:.1}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
                  self.temp_air);
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
     }
 }

@@ -36,31 +36,27 @@ fn main()-> std::io::Result<()> {
     let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT)?;
 
     println!("Sending request for data to {}", TEMP_IP_ADDR);
-    socket.send_to("Give me the data!".as_bytes(), TEMP_IP_ADDR)?;
+    match socket.send_to("Give me the data!".as_bytes(), TEMP_IP_ADDR) {
+        Ok(_size) => {  },
+        Err(_e) => panic!()
+    };
 
     let mut heartbeat = std::time::SystemTime::now();
     
-
-    //let blocks: Vec<Box<dyn tui_blocks::TUIBlock>> = init_vector();
     let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
         Box::new(tui_blocks::Tachometer::new(0,0)),
         Box::new(tui_blocks::TyreTemps::new(0,6)),
-        Box::new(tui_blocks::LapTimes::new(24,0))];
-
-    /* Only here for the offsets
-    let mut block_tach  = Tachometer::new(0, 0);
-    let mut block_tyres = TyreTemps::new(0, 6);
-    let mut block_times = LapTimes::new(24, 0);
-    let mut block_thermometer = Thermometer::new(24, 6);
-    */
+        Box::new(tui_blocks::LapTimes::new(24,0)),
+        Box::new(tui_blocks::Thermometer::new(24,6))];
 
     // This check_var is to satisfy the compiler's dead code warning
     // until we can get a keystroke to kill the program
+    // And we clear the terminal so it doesn't just scroll
     let check_var = false;
+    println!("{}", terminal::Clear(terminal::ClearType::All));
 
     while !check_var {
         let telemetry = get_telemetry_from_connection(&socket);
-        println!("{}", terminal::Clear(terminal::ClearType::All));
 
         if telemetry.physics["packetId"] != 0 {
 
@@ -70,6 +66,7 @@ fn main()-> std::io::Result<()> {
             }
         }
         else {
+            println!("{}", terminal::Clear(terminal::ClearType::All));
             println!("{}", cursor::MoveTo(0,0));
             println!("Connection established to {}, waiting for data...", TEMP_IP_ADDR);
         }
@@ -91,10 +88,6 @@ fn get_ip_from_args() -> Option<String> {
     else {
         return Some(String::from(&args[1]));
     }
-}
-
-fn init_vector() -> Vec<Box<dyn tui_blocks::TUIBlock>> {
-    return vec![Box::new(tui_blocks::Tachometer::new(0,0))]
 }
 
 fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
