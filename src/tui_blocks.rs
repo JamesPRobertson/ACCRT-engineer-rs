@@ -22,8 +22,9 @@ const TYRE_NUM_WARNING: f64 = 100.0;
 
 
 pub trait TUIBlock {
-    fn update(&self, telemetry: &serde_json::Value);
-    fn display(&mut self);
+    fn update(&mut self, physics: &serde_json::Value, graphics: &serde_json::Value);
+    fn init_statics(&mut self, statics: &serde_json::Value);
+    fn display(&self);
 }
 
 pub struct Bounds {
@@ -41,7 +42,7 @@ impl Bounds {
 
 pub struct Tachometer {
     coords: Bounds,
-    rpm_cur: u32,
+    rpm_cur: u64,
     rpm_max: u64, // This is public until the static init function is written in main.rs
     rpm_bar: [bool; RPM_BAR_LEN],
     gear_char: u8
@@ -56,47 +57,6 @@ impl Tachometer {
             rpm_bar: [false; RPM_BAR_LEN],
             gear_char: 0
         }
-    }
-    
-    pub fn update(&mut self, rpm_cur: u32, mut gear_int: u8) {
-        self.rpm_cur = rpm_cur;
-
-        // Decrement by one to account for reverse starting at 0
-        if gear_int >= 1 {
-            gear_int -= 1;
-        }
-
-        self.gear_char = gear_int;
-
-        let mut rpm_percentage = ((self.rpm_cur as f32 /
-                                   self.rpm_max as f32)
-                                  * RPM_BAR_LEN as f32).ceil() as usize;
-
-        // May be a better way for this
-        if rpm_percentage > self.rpm_bar.len() {
-            rpm_percentage = self.rpm_bar.len() - 1;
-        }
-
-        for i in 0..rpm_percentage as usize {
-            self.rpm_bar[i] = true;
-        }
-        for i in rpm_percentage..self.rpm_bar.len() {
-            self.rpm_bar[i] = false;
-        }
-    }
-
-    pub fn display(&self) {
-        print!("{}Tachometer", 
-               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
-        println!("{}RPM:  {} / {}",
-                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
-                 self.rpm_cur,
-                 self.rpm_max);
-        println!("{}Gear: {}", 
-                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
-                 self.gear_char);
-
-        self.print_rpm_bar();
     }
 
     fn print_rpm_bar(&self) {
@@ -128,6 +88,56 @@ impl Tachometer {
             Some(num) => num,
             None      => 0 as u64
         }
+    }
+}
+
+impl TUIBlock for Tachometer {
+    fn display(&self) {
+        print!("{}Tachometer", 
+               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+        println!("{}RPM:  {} / {}",
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
+                 self.rpm_cur,
+                 self.rpm_max);
+        println!("{}Gear: {}", 
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
+                 self.gear_char);
+
+        self.print_rpm_bar();
+    }
+
+    fn update(&mut self, physics: &serde_json::Value, graphics: &serde_json::Value) {
+        let rpm_cur = physics["rpms"].as_u64().unwrap();
+        self.rpm_cur = rpm_cur;
+
+        let mut gear_int = physics["gear"].as_u64().unwrap() as u8;
+
+        // Decrement by one to account for reverse starting at 0
+        if gear_int >= 1 {
+            gear_int -= 1;
+        }
+
+        self.gear_char = gear_int;
+
+        let mut rpm_percentage = ((self.rpm_cur as f32 /
+                                   self.rpm_max as f32)
+                                  * RPM_BAR_LEN as f32).ceil() as usize;
+
+        // May be a better way for this
+        if rpm_percentage > self.rpm_bar.len() {
+            rpm_percentage = self.rpm_bar.len() - 1;
+        }
+
+        for i in 0..rpm_percentage as usize {
+            self.rpm_bar[i] = true;
+        }
+        for i in rpm_percentage..self.rpm_bar.len() {
+            self.rpm_bar[i] = false;
+        }
+    }
+
+    fn init_statics(&mut self, statics: &serde_json::Value) {
+        self.rpm_max = statics["maxRpm"].as_u64().unwrap();
     }
 }
 
