@@ -106,7 +106,7 @@ impl TUIBlock for Tachometer {
         self.print_rpm_bar();
     }
 
-    fn update(&mut self, physics: &serde_json::Value, graphics: &serde_json::Value) {
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
         let rpm_cur = physics["rpms"].as_u64().unwrap();
         self.rpm_cur = rpm_cur;
 
@@ -224,8 +224,14 @@ impl LapTimes {
             time_best: String::new()
         }
     }
+}
 
-    pub fn update(&mut self, time_cur: Option<&str>, time_last: Option<&str>, time_best: Option<&str>) {
+impl TUIBlock for LapTimes {
+    fn update(&mut self, _physics: &serde_json::Value, graphics: &serde_json::Value) {
+        let time_cur = graphics["currentTime"].as_str();
+        let time_last = graphics["lastTime"].as_str();
+        let time_best = graphics["bestTime"].as_str();
+
         match time_cur {
             Some(s) => self.time_cur = s.to_string(),
             None => ()
@@ -250,7 +256,7 @@ impl LapTimes {
         }
     }
 
-    pub fn display(&self) {
+    fn display(&self) {
         println!("{}Lap Times", cursor::MoveTo(self.coords.start_x, self.coords.start_y));
         println!("{}Current Lap: {}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
@@ -261,6 +267,10 @@ impl LapTimes {
         println!("{}Best Lap:    {}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 3),
                  self.time_best);
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
     }
 }
 

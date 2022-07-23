@@ -44,7 +44,8 @@ fn main()-> std::io::Result<()> {
     //let blocks: Vec<Box<dyn tui_blocks::TUIBlock>> = init_vector();
     let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
         Box::new(tui_blocks::Tachometer::new(0,0)),
-        Box::new(tui_blocks::TyreTemps::new(0,6))];
+        Box::new(tui_blocks::TyreTemps::new(0,6)),
+        Box::new(tui_blocks::LapTimes::new(24,0))];
 
     /* Only here for the offsets
     let mut block_tach  = Tachometer::new(0, 0);
