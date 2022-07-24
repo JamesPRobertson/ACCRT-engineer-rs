@@ -82,13 +82,6 @@ impl Tachometer {
         }
         println!("{}", tachometer_end);
     }
-
-    pub fn set_rpm_max(& mut self, rpm_max: &serde_json::Value) {
-        self.rpm_max = match rpm_max.as_u64() {
-            Some(num) => num,
-            None      => 0 as u64
-        }
-    }
 }
 
 impl TUIBlock for Tachometer {
@@ -137,7 +130,10 @@ impl TUIBlock for Tachometer {
     }
 
     fn init_statics(&mut self, statics: &serde_json::Value) {
-        self.rpm_max = statics["maxRpm"].as_u64().unwrap();
+        self.rpm_max = match statics["maxRpm"].as_u64() {
+            Some(num) => num,
+            None      => 0 as u64
+        }
     }
 }
 

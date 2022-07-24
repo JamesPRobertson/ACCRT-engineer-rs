@@ -22,21 +22,19 @@ struct TelemetryData {
 }
 
 fn main()-> std::io::Result<()> {
-    /*
     let server_ip_addr = match get_ip_from_args() {
         Some(val) => val,
         None => {
-            println!("Failed to supply IP, exiting");
+            println!("Failed to supply server IP as argument. Exiting...");
             std::process::exit(1);
         }
     };
-    */
 
     println!("Beginning server...");
     let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT)?;
 
-    println!("Sending request for data to {}", TEMP_IP_ADDR);
-    match socket.send_to("Give me the data!".as_bytes(), TEMP_IP_ADDR) {
+    println!("Sending request for data to {}", &server_ip_addr);
+    match socket.send_to("Give me the data!".as_bytes(), &server_ip_addr) {
         Ok(_size) => {  },
         Err(_e) => panic!()
     };
@@ -53,12 +51,17 @@ fn main()-> std::io::Result<()> {
     // until we can get a keystroke to kill the program
     // And we clear the terminal so it doesn't just scroll
     let check_var = false;
+    let mut static_data_initialized: bool = false;
     println!("{}", terminal::Clear(terminal::ClearType::All));
 
     while !check_var {
         let telemetry = get_telemetry_from_connection(&socket);
 
         if telemetry.physics["packetId"] != 0 {
+            if !static_data_initialized {
+                init_vector_statics(&mut blocks, &telemetry.statics);
+                static_data_initialized = true;
+            }
 
             for block in blocks.iter_mut() {
                 block.update(&telemetry.physics, &telemetry.graphics);
@@ -69,9 +72,10 @@ fn main()-> std::io::Result<()> {
             println!("{}", terminal::Clear(terminal::ClearType::All));
             println!("{}", cursor::MoveTo(0,0));
             println!("Connection established to {}, waiting for data...", TEMP_IP_ADDR);
+            static_data_initialized = false;
         }
 
-        heartbeat = send_heartbeat_to_server(&socket, heartbeat);
+        heartbeat = send_heartbeat_to_server(&socket, &server_ip_addr, heartbeat);
         sleep_for(16); // Roughly 60 Hz
     }
 
@@ -90,13 +94,20 @@ fn get_ip_from_args() -> Option<String> {
     }
 }
 
+fn init_vector_statics(blocks: &mut Vec<Box<dyn TUIBlock>>, statics: &serde_json::Value) {
+    for block in blocks.iter_mut() {
+        block.init_statics(statics);
+    }
+}
+
 fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
+                            ip_addr: &String,
                             heartbeat: std::time::SystemTime) -> std::time::SystemTime {
     let current_time = std::time::SystemTime::now();
     let mut new_heartbeat = heartbeat;
 
     if current_time.duration_since(heartbeat).unwrap() > HEARTBEAT_DELTA_IN_MS {
-        socket.send_to("I'm alive!".as_bytes(), TEMP_IP_ADDR).unwrap();
+        socket.send_to("I'm alive!".as_bytes(), ip_addr).unwrap();
         new_heartbeat = current_time;
     }
 
