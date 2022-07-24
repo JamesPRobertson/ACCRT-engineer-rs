@@ -21,6 +21,12 @@ const TYRE_NUM_OPTIMAL: f64 = 92.0;
 const TYRE_NUM_WARNING: f64 = 100.0;
 
 
+pub trait TUIBlock {
+    fn update(&mut self, physics: &serde_json::Value, graphics: &serde_json::Value);
+    fn init_statics(&mut self, statics: &serde_json::Value);
+    fn display(&self);
+}
+
 pub struct Bounds {
     start_x: u16,
     start_y: u16,
@@ -36,7 +42,7 @@ impl Bounds {
 
 pub struct Tachometer {
     coords: Bounds,
-    rpm_cur: u32,
+    rpm_cur: u64,
     rpm_max: u64, // This is public until the static init function is written in main.rs
     rpm_bar: [bool; RPM_BAR_LEN],
     gear_char: u8
@@ -51,47 +57,6 @@ impl Tachometer {
             rpm_bar: [false; RPM_BAR_LEN],
             gear_char: 0
         }
-    }
-    
-    pub fn update(&mut self, rpm_cur: u32, mut gear_int: u8) {
-        self.rpm_cur = rpm_cur;
-
-        // Decrement by one to account for reverse starting at 0
-        if gear_int >= 1 {
-            gear_int -= 1;
-        }
-
-        self.gear_char = gear_int;
-
-        let mut rpm_percentage = ((self.rpm_cur as f32 /
-                                   self.rpm_max as f32)
-                                  * RPM_BAR_LEN as f32).ceil() as usize;
-
-        // May be a better way for this
-        if rpm_percentage > self.rpm_bar.len() {
-            rpm_percentage = self.rpm_bar.len() - 1;
-        }
-
-        for i in 0..rpm_percentage as usize {
-            self.rpm_bar[i] = true;
-        }
-        for i in rpm_percentage..self.rpm_bar.len() {
-            self.rpm_bar[i] = false;
-        }
-    }
-
-    pub fn display(&self) {
-        print!("{}Tachometer", 
-               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
-        println!("{}RPM:  {} / {}",
-                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
-                 self.rpm_cur,
-                 self.rpm_max);
-        println!("{}Gear: {}", 
-                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
-                 self.gear_char);
-
-        self.print_rpm_bar();
     }
 
     fn print_rpm_bar(&self) {
@@ -117,9 +82,55 @@ impl Tachometer {
         }
         println!("{}", tachometer_end);
     }
+}
 
-    pub fn set_rpm_max(& mut self, rpm_max: &serde_json::Value) {
-        self.rpm_max = match rpm_max.as_u64() {
+impl TUIBlock for Tachometer {
+    fn display(&self) {
+        print!("{}Tachometer", 
+               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+        println!("{}RPM:  {} / {}",
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
+                 self.rpm_cur,
+                 self.rpm_max);
+        println!("{}Gear: {}", 
+                 cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
+                 self.gear_char);
+
+        self.print_rpm_bar();
+    }
+
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
+        let rpm_cur = physics["rpms"].as_u64().unwrap();
+        self.rpm_cur = rpm_cur;
+
+        let mut gear_int = physics["gear"].as_u64().unwrap() as u8;
+
+        // Decrement by one to account for reverse starting at 0
+        if gear_int >= 1 {
+            gear_int -= 1;
+        }
+
+        self.gear_char = gear_int;
+
+        let mut rpm_percentage = ((self.rpm_cur as f32 /
+                                   self.rpm_max as f32)
+                                  * RPM_BAR_LEN as f32).ceil() as usize;
+
+        // May be a better way for this
+        if rpm_percentage > self.rpm_bar.len() {
+            rpm_percentage = self.rpm_bar.len() - 1;
+        }
+
+        for i in 0..rpm_percentage as usize {
+            self.rpm_bar[i] = true;
+        }
+        for i in rpm_percentage..self.rpm_bar.len() {
+            self.rpm_bar[i] = false;
+        }
+    }
+
+    fn init_statics(&mut self, statics: &serde_json::Value) {
+        self.rpm_max = match statics["maxRpm"].as_u64() {
             Some(num) => num,
             None      => 0 as u64
         }
@@ -137,17 +148,6 @@ impl TyreTemps {
             coords: Bounds::new(x, y, 0, 0),
             tyres: [0 as f64; 4]
         }
-    }
-
-    pub fn display(&self) {
-        print!("{}Tyres:",
-               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
-
-        // TODO: Can we iterate over the tyres somehow?
-        self.print_tyre_with_offset(2, 1, 0);
-        self.print_tyre_with_offset(8, 1, 1);
-        self.print_tyre_with_offset(8, 3, 2);
-        self.print_tyre_with_offset(2, 3, 3);
     }
 
     fn print_tyre_with_offset(&self, x_offset: u16, y_offset: u16, tyre_index: usize) {
@@ -172,12 +172,35 @@ impl TyreTemps {
                  self.tyres[tyre_index],
                  COLOR_RESET);
     }
+}
 
-    // TODO: Can still do this better
-    pub fn update(&mut self, temps: &Vec<serde_json::Value>) {
+impl TUIBlock for TyreTemps {
+    fn display(&self) {
+        print!("{}Tyres:",
+               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+
+        // TODO: Can we iterate over the tyres somehow?
+        //       if we do, the tyres will have to become
+        //       their own structs and know their offsets
+        self.print_tyre_with_offset(2, 1, 0);
+        self.print_tyre_with_offset(8, 1, 1);
+        self.print_tyre_with_offset(8, 3, 2);
+        self.print_tyre_with_offset(2, 3, 3);
+    }
+
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
+        let temps = match physics["tyreTemp"].as_array() {
+            Some(arr) => arr,
+            None => { return; }
+        };
+
         for i in 0..self.tyres.len() {
             self.tyres[i] = temps[i].as_f64().unwrap();
         }
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
     }
 }
 
@@ -197,8 +220,14 @@ impl LapTimes {
             time_best: String::new()
         }
     }
+}
 
-    pub fn update(&mut self, time_cur: Option<&str>, time_last: Option<&str>, time_best: Option<&str>) {
+impl TUIBlock for LapTimes {
+    fn update(&mut self, _physics: &serde_json::Value, graphics: &serde_json::Value) {
+        let time_cur = graphics["currentTime"].as_str();
+        let time_last = graphics["lastTime"].as_str();
+        let time_best = graphics["bestTime"].as_str();
+
         match time_cur {
             Some(s) => self.time_cur = s.to_string(),
             None => ()
@@ -223,7 +252,7 @@ impl LapTimes {
         }
     }
 
-    pub fn display(&self) {
+    fn display(&self) {
         println!("{}Lap Times", cursor::MoveTo(self.coords.start_x, self.coords.start_y));
         println!("{}Current Lap: {}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
@@ -234,6 +263,10 @@ impl LapTimes {
         println!("{}Best Lap:    {}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 3),
                  self.time_best);
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
     }
 }
 
@@ -251,13 +284,22 @@ impl Thermometer {
             temp_air: 0 as f64
         }
     }
+}
 
-    pub fn update(&mut self, track: f64, air: f64) {
-        self.temp_track = track;
-        self.temp_air = air;
+impl TUIBlock for Thermometer {
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
+        self.temp_track = match physics["roadTemp"].as_f64() {
+            Some(val) => val,
+            None => self.temp_track
+        };
+
+        self.temp_air = match physics["airTemp"].as_f64() {
+            Some(val) => val,
+            None => self.temp_air
+        };
     }
 
-    pub fn display(&self) {
+    fn display(&self) {
         println!("{}Thermometer", cursor::MoveTo(self.coords.start_x, self.coords.start_y));
         println!("{}Track Temp: {:.1}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 1),
@@ -265,5 +307,9 @@ impl Thermometer {
         println!("{}Air Temp:   {:.1}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
                  self.temp_air);
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
     }
 }
