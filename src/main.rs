@@ -1,6 +1,6 @@
 // James Robertson 2022
 // ACCRT Engineer Rust
-// Main.rs
+// Main
 //
 
 use crossterm::{ cursor, terminal };
@@ -29,16 +29,14 @@ fn main()-> std::io::Result<()> {
         }
     };
 
-    println!("Beginning server...");
+    println!("Binding to socket with {}...", LISTEN_IP_ADDR_PORT);
     let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT)?;
 
     println!("Sending request for data to {}", &server_ip_addr);
     match socket.send_to("Give me the data!".as_bytes(), &server_ip_addr) {
         Ok(_size) => { },
-        Err(_e) => panic!()
+        Err(_e) => panic!("Send request for data failed!")
     };
-
-    crossterm::execute!(std::io::stdout(), terminal::EnterAlternateScreen)?;
 
     let mut heartbeat = std::time::SystemTime::now();
     
@@ -84,7 +82,6 @@ fn main()-> std::io::Result<()> {
         sleep_for_polling_rate();
     }
 
-    crossterm::execute!(std::io::stdout(), terminal::LeaveAlternateScreen)?;
     Ok(())
 }
 
