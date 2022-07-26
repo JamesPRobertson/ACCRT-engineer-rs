@@ -1,6 +1,6 @@
 // James Robertson 2022
 // ACCRT Engineer Rust
-// Main.rs
+// Main
 //
 
 use crossterm::{ cursor, terminal };
@@ -11,8 +11,7 @@ use crate::tui_blocks::*;
 const BUFFER_SIZE: usize = 8192;
 const HEARTBEAT_DELTA_IN_MS: std::time::Duration = std::time::Duration::from_millis(2000);
 const LISTEN_IP_ADDR_PORT: &str = "0.0.0.0:9001";
-
-const TEMP_IP_ADDR: &str = "99.129.97.238:9000";
+const POLLING_RATE_IN_MS: u64 = 16; // Roughly 60 Hz
 
 // TODO: Maybe this shouldn't live here
 struct TelemetryData {
@@ -30,13 +29,13 @@ fn main()-> std::io::Result<()> {
         }
     };
 
-    println!("Beginning server...");
+    println!("Binding to socket with {}...", LISTEN_IP_ADDR_PORT);
     let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT)?;
 
     println!("Sending request for data to {}", &server_ip_addr);
     match socket.send_to("Give me the data!".as_bytes(), &server_ip_addr) {
-        Ok(_size) => {  },
-        Err(_e) => panic!()
+        Ok(_size) => { },
+        Err(_e) => panic!("Send request for data failed!")
     };
 
     let mut heartbeat = std::time::SystemTime::now();
@@ -49,13 +48,18 @@ fn main()-> std::io::Result<()> {
 
     // This check_var is to satisfy the compiler's dead code warning
     // until we can get a keystroke to kill the program
-    // And we clear the terminal so it doesn't just scroll
     let check_var = false;
     let mut static_data_initialized: bool = false;
     println!("{}", terminal::Clear(terminal::ClearType::All));
 
     while !check_var {
-        let telemetry = get_telemetry_from_connection(&socket);
+        let telemetry = match get_telemetry_from_connection(&socket) {
+            Some(val) => val,
+            None => { 
+                sleep_for_polling_rate();
+                continue;
+            }
+        };
 
         if telemetry.physics["packetId"] != 0 {
             if !static_data_initialized {
@@ -69,21 +73,19 @@ fn main()-> std::io::Result<()> {
             }
         }
         else {
-            println!("{}", terminal::Clear(terminal::ClearType::All));
-            println!("{}", cursor::MoveTo(0,0));
-            println!("Connection established to {}, waiting for data...", TEMP_IP_ADDR);
+            println!("{}{}", terminal::Clear(terminal::ClearType::All) ,cursor::MoveTo(0,0));
+            println!("Connection established to {}, waiting for data...", server_ip_addr);
             static_data_initialized = false;
         }
 
         heartbeat = send_heartbeat_to_server(&socket, &server_ip_addr, heartbeat);
-        sleep_for(16); // Roughly 60 Hz
+        sleep_for_polling_rate();
     }
 
     Ok(())
 }
 
 fn get_ip_from_args() -> Option<String> {
-    // TODO: Rewrite as function that returns the IP
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 2 {
@@ -119,7 +121,11 @@ fn sleep_for(time: u64) {
     std::thread::sleep(std::time::Duration::from_millis(time));
 }
 
-fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> TelemetryData {
+fn sleep_for_polling_rate() {
+    sleep_for(POLLING_RATE_IN_MS);
+}
+
+fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> Option<TelemetryData> {
     // For the moment, this function will panic if it encounters an error.
     // This will be fixed when a better method for dealing with errors
     // is learned.
@@ -129,10 +135,9 @@ fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> TelemetryData 
         Err(e)       => panic!("{}", e)
     };
 
-    // TODO: This actually needs to be handled gracefully as sometimes UDP can get mangled.
     let json_data: serde_json::Value = match serde_json::from_slice(&buffer[0..buf_len]) {
         Ok(json) => json,
-        Err(e)   => panic!("{}", e)
+        Err(_e)   => { return None; }
     };
 
     let telemetry = TelemetryData {
@@ -141,8 +146,6 @@ fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> TelemetryData 
         statics: json_data["static_data"].clone()
     };
 
-    return telemetry;
+    return Some(telemetry);
 }
-
-// TODO: Create an initial setup function for statics data
 
