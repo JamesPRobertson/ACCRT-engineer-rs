@@ -61,6 +61,8 @@ fn main()-> std::io::Result<()> {
             }
         };
 
+        println!("{}", terminal::Clear(terminal::ClearType::All));
+
         if telemetry.physics["packetId"] != 0 {
             if !static_data_initialized {
                 init_vector_statics(&mut blocks, &telemetry.statics);
