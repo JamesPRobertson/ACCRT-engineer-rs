@@ -3,7 +3,7 @@
 // Main
 //
 
-use crossterm::{ cursor, terminal };
+use crossterm::{ cursor, event, terminal };
 
 mod tui_blocks;
 use crate::tui_blocks::*;
@@ -98,6 +98,16 @@ fn get_ip_from_args() -> Option<String> {
     }
 }
 
+fn terminal_setup() {
+    crossterm::terminal::enable_raw_mode().unwrap();
+    crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen).unwrap();
+}
+
+fn terminal_cleanup() {
+    crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+    crossterm::terminal::disable_raw_mode().unwrap();
+}
+
 fn init_vector_statics(blocks: &mut Vec<Box<dyn TUIBlock>>, statics: &serde_json::Value) {
     for block in blocks.iter_mut() {
         block.init_statics(statics);
@@ -128,9 +138,6 @@ fn sleep_for_polling_rate() {
 }
 
 fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> Option<TelemetryData> {
-    // For the moment, this function will panic if it encounters an error.
-    // This will be fixed when a better method for dealing with errors
-    // is learned.
     let mut buffer = [0; BUFFER_SIZE];
     let buf_len: usize = match socket.recv(&mut buffer) {
         Ok(buf_size) => buf_size,
@@ -151,3 +158,9 @@ fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> Option<Telemet
     return Some(telemetry);
 }
 
+fn build_key_event(hotkey: char) -> event::Event {
+    event::Event::Key(event::KeyEvent {
+        code: event::KeyCode::Char(hotkey),
+        modifiers: event::KeyModifiers::NONE
+    })
+}
