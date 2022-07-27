@@ -21,7 +21,7 @@ struct TelemetryData {
     statics: serde_json::Value
 }
 
-fn main()-> std::io::Result<()> {
+fn main() {
     let server_ip_addr = match get_ip_from_args() {
         Some(val) => val,
         None => {
@@ -31,7 +31,7 @@ fn main()-> std::io::Result<()> {
     };
 
     println!("Binding to socket with {}...", LISTEN_IP_ADDR_PORT);
-    let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT)?;
+    let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT).unwrap();
 
     println!("Sending request for data to {}", &server_ip_addr);
     match socket.send_to("Give me the data!".as_bytes(), &server_ip_addr) {
@@ -54,12 +54,9 @@ fn main()-> std::io::Result<()> {
         Box::new(tui_blocks::LapTimes::new(24,0)),
         Box::new(tui_blocks::Thermometer::new(24,6))];
 
-    // This check_var is to satisfy the compiler's dead code warning
-    // until we can get a keystroke to kill the program
-    let check_var = false;
     let mut static_data_initialized: bool = false;
 
-    while !check_var {
+    loop {
         if is_event_available() {
             match hotkeys.get(&event::read().unwrap()) {
                 Some(function) => function(),
@@ -97,8 +94,6 @@ fn main()-> std::io::Result<()> {
         heartbeat = send_heartbeat_to_server(&socket, &server_ip_addr, heartbeat);
         sleep_for_polling_rate();
     }
-
-    Ok(())
 }
 
 fn get_ip_from_args() -> Option<String> {
