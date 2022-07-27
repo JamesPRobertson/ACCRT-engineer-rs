@@ -4,6 +4,7 @@
 //
 
 use crossterm::{ cursor, event, terminal };
+use std::collections::HashMap;
 
 mod tui_blocks;
 use crate::tui_blocks::*;
@@ -38,6 +39,13 @@ fn main()-> std::io::Result<()> {
         Err(_e) => panic!("Send request for data failed!")
     };
 
+    wait_for_initial_message(&socket);
+
+    terminal_setup(); // From this point on we are in the alternate buffer
+
+    let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
+    hotkeys.insert(build_key_event('q'), exit_terminal);
+
     let mut heartbeat = std::time::SystemTime::now();
     
     let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
@@ -50,9 +58,15 @@ fn main()-> std::io::Result<()> {
     // until we can get a keystroke to kill the program
     let check_var = false;
     let mut static_data_initialized: bool = false;
-    println!("{}", terminal::Clear(terminal::ClearType::All));
 
     while !check_var {
+        if is_event_available() {
+            match hotkeys.get(&event::read().unwrap()) {
+                Some(function) => function(),
+                None => { }
+            }
+        }
+
         let telemetry = match get_telemetry_from_connection(&socket) {
             Some(val) => val,
             None => { 
@@ -114,6 +128,13 @@ fn init_vector_statics(blocks: &mut Vec<Box<dyn TUIBlock>>, statics: &serde_json
     }
 }
 
+fn wait_for_initial_message(socket: &std::net::UdpSocket) {
+    let mut buffer = [0; BUFFER_SIZE];
+    println!("Waiting for connection...");
+    socket.recv(&mut buffer).unwrap();
+    println!("Connection successful!")
+}
+
 fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
                             ip_addr: &String,
                             heartbeat: std::time::SystemTime) -> std::time::SystemTime {
@@ -128,7 +149,6 @@ fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
     return new_heartbeat;
 }
 
-/// Wrapper function for Thread Sleep call for simplicity
 fn sleep_for(time: u64) {
     std::thread::sleep(std::time::Duration::from_millis(time));
 }
@@ -150,12 +170,16 @@ fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> Option<Telemet
     };
 
     let telemetry = TelemetryData {
-        physics: json_data["physics_data"].clone(),
+        physics:  json_data["physics_data"].clone(),
         graphics: json_data["graphics_data"].clone(),
-        statics: json_data["static_data"].clone()
+        statics:  json_data["static_data"].clone()
     };
 
     return Some(telemetry);
+}
+
+fn is_event_available() -> bool {
+    event::poll(std::time::Duration::from_millis(0)).unwrap()
 }
 
 fn build_key_event(hotkey: char) -> event::Event {
@@ -163,4 +187,9 @@ fn build_key_event(hotkey: char) -> event::Event {
         code: event::KeyCode::Char(hotkey),
         modifiers: event::KeyModifiers::NONE
     })
+}
+
+fn exit_terminal() {
+    terminal_cleanup();
+    std::process::exit(0);
 }
