@@ -3,7 +3,8 @@
 // Main
 //
 
-use crossterm::{ cursor, terminal };
+use crossterm::{ cursor, event, terminal };
+use std::collections::HashMap;
 
 mod tui_blocks;
 use crate::tui_blocks::*;
@@ -20,7 +21,7 @@ struct TelemetryData {
     statics: serde_json::Value
 }
 
-fn main()-> std::io::Result<()> {
+fn main() {
     let server_ip_addr = match get_ip_from_args() {
         Some(val) => val,
         None => {
@@ -30,13 +31,20 @@ fn main()-> std::io::Result<()> {
     };
 
     println!("Binding to socket with {}...", LISTEN_IP_ADDR_PORT);
-    let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT)?;
+    let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT).unwrap();
 
     println!("Sending request for data to {}", &server_ip_addr);
     match socket.send_to("Give me the data!".as_bytes(), &server_ip_addr) {
         Ok(_size) => { },
         Err(_e) => panic!("Send request for data failed!")
     };
+
+    wait_for_initial_message(&socket);
+
+    terminal_setup(); // From this point on we are in the alternate buffer
+
+    let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
+    hotkeys.insert(build_key_event('q'), exit_terminal);
 
     let mut heartbeat = std::time::SystemTime::now();
     
@@ -46,13 +54,16 @@ fn main()-> std::io::Result<()> {
         Box::new(tui_blocks::LapTimes::new(24,0)),
         Box::new(tui_blocks::Thermometer::new(24,6))];
 
-    // This check_var is to satisfy the compiler's dead code warning
-    // until we can get a keystroke to kill the program
-    let check_var = false;
     let mut static_data_initialized: bool = false;
-    println!("{}", terminal::Clear(terminal::ClearType::All));
 
-    while !check_var {
+    loop {
+        if is_event_available() {
+            match hotkeys.get(&event::read().unwrap()) {
+                Some(function) => function(),
+                None => { }
+            }
+        }
+
         let telemetry = match get_telemetry_from_connection(&socket) {
             Some(val) => val,
             None => { 
@@ -83,8 +94,6 @@ fn main()-> std::io::Result<()> {
         heartbeat = send_heartbeat_to_server(&socket, &server_ip_addr, heartbeat);
         sleep_for_polling_rate();
     }
-
-    Ok(())
 }
 
 fn get_ip_from_args() -> Option<String> {
@@ -98,10 +107,27 @@ fn get_ip_from_args() -> Option<String> {
     }
 }
 
+fn terminal_setup() {
+    crossterm::terminal::enable_raw_mode().unwrap();
+    crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen).unwrap();
+}
+
+fn terminal_cleanup() {
+    crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+    crossterm::terminal::disable_raw_mode().unwrap();
+}
+
 fn init_vector_statics(blocks: &mut Vec<Box<dyn TUIBlock>>, statics: &serde_json::Value) {
     for block in blocks.iter_mut() {
         block.init_statics(statics);
     }
+}
+
+fn wait_for_initial_message(socket: &std::net::UdpSocket) {
+    let mut buffer = [0; BUFFER_SIZE];
+    println!("Waiting for connection...");
+    socket.recv(&mut buffer).unwrap();
+    println!("Connection successful!")
 }
 
 fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
@@ -118,7 +144,6 @@ fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
     return new_heartbeat;
 }
 
-/// Wrapper function for Thread Sleep call for simplicity
 fn sleep_for(time: u64) {
     std::thread::sleep(std::time::Duration::from_millis(time));
 }
@@ -128,9 +153,6 @@ fn sleep_for_polling_rate() {
 }
 
 fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> Option<TelemetryData> {
-    // For the moment, this function will panic if it encounters an error.
-    // This will be fixed when a better method for dealing with errors
-    // is learned.
     let mut buffer = [0; BUFFER_SIZE];
     let buf_len: usize = match socket.recv(&mut buffer) {
         Ok(buf_size) => buf_size,
@@ -143,11 +165,26 @@ fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> Option<Telemet
     };
 
     let telemetry = TelemetryData {
-        physics: json_data["physics_data"].clone(),
+        physics:  json_data["physics_data"].clone(),
         graphics: json_data["graphics_data"].clone(),
-        statics: json_data["static_data"].clone()
+        statics:  json_data["static_data"].clone()
     };
 
     return Some(telemetry);
 }
 
+fn is_event_available() -> bool {
+    event::poll(std::time::Duration::from_millis(0)).unwrap()
+}
+
+fn build_key_event(hotkey: char) -> event::Event {
+    event::Event::Key(event::KeyEvent {
+        code: event::KeyCode::Char(hotkey),
+        modifiers: event::KeyModifiers::NONE
+    })
+}
+
+fn exit_terminal() {
+    terminal_cleanup();
+    std::process::exit(0);
+}
