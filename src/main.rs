@@ -14,15 +14,25 @@ const HEARTBEAT_DELTA_IN_MS: std::time::Duration = std::time::Duration::from_mil
 const LISTEN_IP_ADDR_PORT: &str = "0.0.0.0:9001";
 const POLLING_RATE_IN_MS: u64 = 16; // Roughly 60 Hz
 
+struct NetworkInfo {
+    socket: std::net::UdpSocket,
+    server_ip: String,
+    listen_ip: String,
+    heartbeat: std::time::SystemTime
+}
+
 struct TelemetryParser {
     physics: serde_json::Value,
     graphics: serde_json::Value,
     statics: serde_json::Value, 
-    socket: std::net::UdpSocket
+    // Add blocks ?
+    network: NetworkInfo
 }
 
 impl TelemetryParser {
-    fn main() {
+    fn main(&mut self) {
+
+        // CONSTRUCTION
         let server_ip_addr = match get_ip_from_args() {
             Some(val) => val,
             None => {
@@ -32,20 +42,21 @@ impl TelemetryParser {
         };
 
         println!("Binding to socket with {}...", LISTEN_IP_ADDR_PORT);
-        let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT).unwrap();
+        self.network.socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT).unwrap();
 
         println!("Sending request for data to {}", &server_ip_addr);
-        match socket.send_to("Give me the data!".as_bytes(), &server_ip_addr) {
+        match self.network.socket.send_to("Give me the data!".as_bytes(), &server_ip_addr) {
             Ok(_size) => { },
             Err(_e) => panic!("Send request for data failed!")
         };
 
-        wait_for_initial_message(&socket);
+        self.wait_for_initial_message();
+        // END CONSTRUCTION
 
         terminal_setup(); // From this point on we are in the alternate buffer
 
         let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
-        hotkeys.insert(build_key_event('q'), exit_terminal);
+        hotkeys.insert(self.build_key_event('q'), exit_terminal);
 
         let mut heartbeat = std::time::SystemTime::now();
         
@@ -58,16 +69,16 @@ impl TelemetryParser {
         let mut static_data_initialized: bool = false;
 
         loop {
-            if is_event_available() {
+            if self.is_event_available() {
                 match hotkeys.get(&event::read().unwrap()) {
                     Some(function) => function(),
                     None => { }
                 }
             }
 
-            let telemetry = match update_telemetry_from_connection(&socket) {
-                Some(val) => val,
-                None => { 
+            match self.update_telemetry_from_connection() {
+                Ok(()) => { },
+                Err(_e) => { 
                     sleep_for_polling_rate();
                     continue;
                 }
@@ -75,14 +86,14 @@ impl TelemetryParser {
 
             println!("{}", terminal::Clear(terminal::ClearType::All));
 
-            if telemetry.physics["packetId"] != 0 {
+            if self.physics["packetId"] != 0 {
                 if !static_data_initialized {
-                    init_vector_statics(&mut blocks, &telemetry.statics);
+                    self.init_vector_statics(&mut blocks);
                     static_data_initialized = true;
                 }
 
                 for block in blocks.iter_mut() {
-                    block.update(&telemetry.physics, &telemetry.graphics);
+                    block.update(&self.physics, &self.graphics);
                     block.display();
                 }
             }
@@ -92,65 +103,61 @@ impl TelemetryParser {
                 static_data_initialized = false;
             }
 
-            heartbeat = send_heartbeat_to_server(&socket, &server_ip_addr, heartbeat);
+            heartbeat = self.send_heartbeat_to_server(&server_ip_addr, heartbeat);
             sleep_for_polling_rate();
         }
     }
 
-    fn update_telemetry_from_connection(&mut self,
-                                        socket: &std::net::UdpSocket)
-                                        -> Result<(), serde_json::Error>{
+    fn update_telemetry_from_connection(&mut self) -> Result<(), serde_json::Error>{
         let mut buffer = [0; BUFFER_SIZE];
-        let buf_len: usize = match socket.recv(&mut buffer) {
+        let buf_len: usize = match self.network.socket.recv(&mut buffer) {
             Ok(buf_size) => buf_size,
             Err(e)       => panic!("{}", e)
         };
 
         let json_data: serde_json::Value = serde_json::from_slice(&buffer[0..buf_len])?;
 
-        
+        // TODO Still find a better way to do this
+        self.physics = json_data["physics_data"].clone();
+        self.graphics = json_data["graphics_data"].clone();
+        self.statics = json_data["static_data"].clone();
 
-        /*
-        let telemetry = TelemetryData {
-            physics:  json_data["physics_data"].clone(),
-            graphics: json_data["graphics_data"].clone(),
-            statics:  json_data["static_data"].clone()
-        };
-        */
+        Ok(())
     }
 
-    fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
+    fn send_heartbeat_to_server(&mut self,
                                 ip_addr: &String,
                                 heartbeat: std::time::SystemTime) -> std::time::SystemTime {
         let current_time = std::time::SystemTime::now();
         let mut new_heartbeat = heartbeat;
 
         if current_time.duration_since(heartbeat).unwrap() > HEARTBEAT_DELTA_IN_MS {
-            socket.send_to("I'm alive!".as_bytes(), ip_addr).unwrap();
+            self.network.socket.send_to("I'm alive!".as_bytes(), ip_addr).unwrap();
             new_heartbeat = current_time;
         }
 
         return new_heartbeat;
     }
-    fn init_vector_statics(blocks: &mut Vec<Box<dyn TUIBlock>>, statics: &serde_json::Value) {
+
+    fn init_vector_statics(&self, blocks: &mut Vec<Box<dyn TUIBlock>>) {
         for block in blocks.iter_mut() {
-            block.init_statics(statics);
+            block.init_statics(&self.statics);
         }
     }
 
-    fn wait_for_initial_message(socket: &std::net::UdpSocket) {
+    fn wait_for_initial_message(&mut self) {
         let mut buffer = [0; BUFFER_SIZE];
         println!("Waiting for connection...");
-        socket.recv(&mut buffer).unwrap();
+        self.network.socket.recv(&mut buffer).unwrap();
         println!("Connection successful!")
     }
 
 
-    fn is_event_available() -> bool {
+    fn is_event_available(&self) -> bool {
         event::poll(std::time::Duration::from_millis(0)).unwrap()
     }
 
-    fn build_key_event(hotkey: char) -> event::Event {
+    fn build_key_event(&self, hotkey: char) -> event::Event {
         event::Event::Key(event::KeyEvent {
             code: event::KeyCode::Char(hotkey),
             modifiers: event::KeyModifiers::NONE
