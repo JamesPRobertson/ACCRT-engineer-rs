@@ -314,3 +314,4 @@ impl TUIBlock for Thermometer {
         return;
     }
 }
+
