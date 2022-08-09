@@ -101,7 +101,11 @@ impl TUIBlock for Tachometer {
     }
 
     fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
-        let rpm_cur = physics["rpms"].as_u64().unwrap();
+        let rpm_cur = match physics["rpms"].as_u64() {
+            Some(val) => val,
+            None      => 0
+        };
+
         self.rpm_cur = rpm_cur;
 
         let mut gear_int = physics["gear"].as_u64().unwrap() as u8;
@@ -117,7 +121,7 @@ impl TUIBlock for Tachometer {
                                    self.rpm_max as f32)
                                   * RPM_BAR_LEN as f32).ceil() as usize;
 
-        // May be a better way for this
+        // TODO this may be broken actually
         if rpm_percentage > self.rpm_bar.len() {
             rpm_percentage = self.rpm_bar.len() - 1;
         }
@@ -136,7 +140,7 @@ impl TUIBlock for Tachometer {
             None      => 0 as u64
         }
     }
-}
+} 
 
 pub struct TyreTemps {
     coords: Bounds,

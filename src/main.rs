@@ -12,21 +12,26 @@ use crate::tui_blocks::*;
 const BUFFER_SIZE: usize = 8192;
 const HEARTBEAT_DELTA_IN_MS: std::time::Duration = std::time::Duration::from_millis(2000);
 const LISTEN_IP_ADDR_PORT: &str = "0.0.0.0:9001";
+
+// TODO: Should polling rate be a part of telemetry parser?
+//       this would move the thread sleep functions into
+//       TelemetryParser the object
 const POLLING_RATE_IN_MS: u64 = 16; // Roughly 60 Hz
 
 struct NetworkInfo {
     socket:    std::net::UdpSocket,
     server_ip: String,
-    listen_ip: String,
+    _listen_ip: String,
     heartbeat: std::time::SystemTime
 }
 
 impl NetworkInfo {
-    fn new(server_ip: String) -> NetworkInfo {
+    fn new(listen_ip: String, server_ip: String) -> NetworkInfo {
         NetworkInfo {
-            socket: std::net::UdpSocket::bind(&server_ip).unwrap(),
+            //socket: std::net::UdpSocket::bind(&server_ip).unwrap(),
+            socket: std::net::UdpSocket::bind(&listen_ip).unwrap(),
             server_ip,
-            listen_ip: String::from(LISTEN_IP_ADDR_PORT),
+            _listen_ip: listen_ip,
             heartbeat: std::time::SystemTime::now()
         }
     }
@@ -44,9 +49,10 @@ impl TelemetryParser {
     fn main(&mut self) {
         // TODO this will have to be rethought with asyncness
         let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
-        hotkeys.insert(self.build_key_event('q'), exit_terminal);
+        hotkeys.insert(TelemetryParser::build_key_event('q'), exit_terminal);
         //
         
+        // This will be built and then destroyed when telemetry source ends
         let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
             Box::new(tui_blocks::Tachometer::new(0,0)),
             Box::new(tui_blocks::TyreTemps::new(0,6)),
@@ -56,7 +62,7 @@ impl TelemetryParser {
         let mut static_data_initialized: bool = false;
 
         loop {
-            if self.is_event_available() {
+            if TelemetryParser::is_event_available() {
                 match hotkeys.get(&event::read().unwrap()) {
                     Some(function) => function(),
                     None => { }
@@ -96,12 +102,12 @@ impl TelemetryParser {
         }
     }
 
-    fn new(server_ip_addr: String) -> TelemetryParser {
+    fn new(listen_ip_addr: String, server_ip_addr: String) -> TelemetryParser {
         return TelemetryParser {
             physics: serde_json::Value::Null,
             graphics: serde_json::Value::Null,
             statics: serde_json::Value::Null,
-            network: NetworkInfo::new(server_ip_addr)
+            network: NetworkInfo::new(listen_ip_addr, server_ip_addr)
         }
     }
 
@@ -116,7 +122,7 @@ impl TelemetryParser {
         self.wait_for_initial_message();
     }
 
-    fn update_telemetry_from_connection(&mut self) -> Result<(), serde_json::Error>{
+    fn update_telemetry_from_connection(&mut self) -> Result<(), serde_json::Error> {
         let mut buffer = [0; BUFFER_SIZE];
         let buf_len: usize = match self.network.socket.recv(&mut buffer) {
             Ok(buf_size) => buf_size,
@@ -133,7 +139,7 @@ impl TelemetryParser {
         Ok(())
     }
 
-    fn send_heartbeat_to_server(&mut self){
+    fn send_heartbeat_to_server(&mut self) {
         let current_time = std::time::SystemTime::now();
         
         if current_time.duration_since(self.network.heartbeat).unwrap() > HEARTBEAT_DELTA_IN_MS {
@@ -156,11 +162,11 @@ impl TelemetryParser {
         // TODO we may have to update heartbeat, we may not
     }
 
-    fn is_event_available(&self) -> bool {
+    fn is_event_available() -> bool {
         event::poll(std::time::Duration::from_millis(0)).unwrap()
     }
 
-    fn build_key_event(&self, hotkey: char) -> event::Event {
+    fn build_key_event(hotkey: char) -> event::Event {
         event::Event::Key(event::KeyEvent {
             code: event::KeyCode::Char(hotkey),
             modifiers: event::KeyModifiers::NONE
@@ -177,11 +183,13 @@ fn main() {
         }
     };
 
-    let telemetry_parser = TelemetryParser::new(server_ip_addr);
+    let mut telemetry_parser = TelemetryParser::new(String::from(LISTEN_IP_ADDR_PORT), server_ip_addr);
 
     telemetry_parser.preconnect_setup();
 
     terminal_setup();
+
+    telemetry_parser.main();
 }
 
 fn get_ip_from_args() -> Option<String> {
