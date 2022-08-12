@@ -12,13 +12,166 @@ use crate::tui_blocks::*;
 const BUFFER_SIZE: usize = 8192;
 const HEARTBEAT_DELTA_IN_MS: std::time::Duration = std::time::Duration::from_millis(2000);
 const LISTEN_IP_ADDR_PORT: &str = "0.0.0.0:9001";
+
+// TODO: Should polling rate be a part of telemetry parser?
+//       this would move the thread sleep functions into
+//       TelemetryParser the object
 const POLLING_RATE_IN_MS: u64 = 16; // Roughly 60 Hz
 
-// TODO: Maybe this shouldn't live here
-struct TelemetryData {
+struct NetworkInfo {
+    socket:    std::net::UdpSocket,
+    server_ip: String,
+    _listen_ip: String,
+    heartbeat: std::time::SystemTime
+}
+
+impl NetworkInfo {
+    fn new(listen_ip: String, server_ip: String) -> NetworkInfo {
+        NetworkInfo {
+            //socket: std::net::UdpSocket::bind(&server_ip).unwrap(),
+            socket: std::net::UdpSocket::bind(&listen_ip).unwrap(),
+            server_ip,
+            _listen_ip: listen_ip,
+            heartbeat: std::time::SystemTime::now()
+        }
+    }
+}
+
+struct TelemetryParser {
     physics: serde_json::Value,
     graphics: serde_json::Value,
-    statics: serde_json::Value
+    statics: serde_json::Value, 
+    // Add blocks ?
+    network: NetworkInfo
+}
+
+impl TelemetryParser {
+    fn main(&mut self) {
+        // TODO this will have to be rethought with asyncness
+        let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
+        hotkeys.insert(TelemetryParser::build_key_event('q'), exit_terminal);
+        //
+        
+        // This will be built and then destroyed when telemetry source ends
+        let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
+            Box::new(tui_blocks::Tachometer::new(0,0)),
+            Box::new(tui_blocks::TyreTemps::new(0,6)),
+            Box::new(tui_blocks::LapTimes::new(24,0)),
+            Box::new(tui_blocks::Thermometer::new(24,6))];
+
+        let mut static_data_initialized: bool = false;
+
+        loop {
+            if TelemetryParser::is_event_available() {
+                match hotkeys.get(&event::read().unwrap()) {
+                    Some(function) => function(),
+                    None => { }
+                }
+            }
+
+            match self.update_telemetry_from_connection() {
+                Ok(()) => { },
+                Err(_e) => { 
+                    sleep_for_polling_rate();
+                    continue;
+                }
+            };
+
+            println!("{}", terminal::Clear(terminal::ClearType::All));
+
+            // TODO instead of this, we need to know when we are actually getting good data
+            if self.physics["packetId"] != 0 {
+                if !static_data_initialized {
+                    self.init_vector_statics(&mut blocks);
+                    static_data_initialized = true;
+                }
+
+                for block in blocks.iter_mut() {
+                    block.update(&self.physics, &self.graphics);
+                    block.display();
+                }
+            }
+            else {
+                println!("{}{}", terminal::Clear(terminal::ClearType::All) ,cursor::MoveTo(0,0));
+                println!("Connection established to {}, waiting for data...", self.network.server_ip);
+                static_data_initialized = false;
+            }
+
+            self.send_heartbeat_to_server();
+            sleep_for_polling_rate();
+        }
+    }
+
+    fn new(listen_ip_addr: String, server_ip_addr: String) -> TelemetryParser {
+        return TelemetryParser {
+            physics: serde_json::Value::Null,
+            graphics: serde_json::Value::Null,
+            statics: serde_json::Value::Null,
+            network: NetworkInfo::new(listen_ip_addr, server_ip_addr)
+        }
+    }
+
+    fn preconnect_setup(&self) {
+        println!("Sending request for data to {}", &self.network.server_ip);
+
+        match self.network.socket.send_to("Give me the data!".as_bytes(), &self.network.server_ip) {
+            Ok(_size) => { },
+            Err(_e) => panic!("Send request for data failed!")
+        };
+
+        self.wait_for_initial_message();
+    }
+
+    fn update_telemetry_from_connection(&mut self) -> Result<(), serde_json::Error> {
+        let mut buffer = [0; BUFFER_SIZE];
+        let buf_len: usize = match self.network.socket.recv(&mut buffer) {
+            Ok(buf_size) => buf_size,
+            Err(e)       => panic!("{}", e)
+        };
+
+        let json_data: serde_json::Value = serde_json::from_slice(&buffer[0..buf_len])?;
+
+        // TODO Still find a better way to do this
+        self.physics = json_data["physics_data"].clone();
+        self.graphics = json_data["graphics_data"].clone();
+        self.statics = json_data["static_data"].clone();
+
+        Ok(())
+    }
+
+    fn send_heartbeat_to_server(&mut self) {
+        let current_time = std::time::SystemTime::now();
+        
+        if current_time.duration_since(self.network.heartbeat).unwrap() > HEARTBEAT_DELTA_IN_MS {
+            self.network.socket.send_to("I'm alive!".as_bytes(), &self.network.server_ip).unwrap();
+            self.network.heartbeat = current_time;
+        }
+    }
+
+    fn init_vector_statics(&self, blocks: &mut Vec<Box<dyn TUIBlock>>) {
+        for block in blocks.iter_mut() {
+            block.init_statics(&self.statics);
+        }
+    }
+
+    fn wait_for_initial_message(&self) {
+        let mut buffer = [0; BUFFER_SIZE];
+        println!("Waiting for connection...");
+        self.network.socket.recv(&mut buffer).unwrap();
+        println!("Connection successful!");
+        // TODO we may have to update heartbeat, we may not
+    }
+
+    fn is_event_available() -> bool {
+        event::poll(std::time::Duration::from_millis(0)).unwrap()
+    }
+
+    fn build_key_event(hotkey: char) -> event::Event {
+        event::Event::Key(event::KeyEvent {
+            code: event::KeyCode::Char(hotkey),
+            modifiers: event::KeyModifiers::NONE
+        })
+    }
 }
 
 fn main() {
@@ -30,70 +183,13 @@ fn main() {
         }
     };
 
-    println!("Binding to socket with {}...", LISTEN_IP_ADDR_PORT);
-    let socket = std::net::UdpSocket::bind(LISTEN_IP_ADDR_PORT).unwrap();
+    let mut telemetry_parser = TelemetryParser::new(String::from(LISTEN_IP_ADDR_PORT), server_ip_addr);
 
-    println!("Sending request for data to {}", &server_ip_addr);
-    match socket.send_to("Give me the data!".as_bytes(), &server_ip_addr) {
-        Ok(_size) => { },
-        Err(_e) => panic!("Send request for data failed!")
-    };
+    telemetry_parser.preconnect_setup();
 
-    wait_for_initial_message(&socket);
+    terminal_setup();
 
-    terminal_setup(); // From this point on we are in the alternate buffer
-
-    let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
-    hotkeys.insert(build_key_event('q'), exit_terminal);
-
-    let mut heartbeat = std::time::SystemTime::now();
-    
-    let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
-        Box::new(tui_blocks::Tachometer::new(0,0)),
-        Box::new(tui_blocks::TyreTemps::new(0,6)),
-        Box::new(tui_blocks::LapTimes::new(24,0)),
-        Box::new(tui_blocks::Thermometer::new(24,6))];
-
-    let mut static_data_initialized: bool = false;
-
-    loop {
-        if is_event_available() {
-            match hotkeys.get(&event::read().unwrap()) {
-                Some(function) => function(),
-                None => { }
-            }
-        }
-
-        let telemetry = match get_telemetry_from_connection(&socket) {
-            Some(val) => val,
-            None => { 
-                sleep_for_polling_rate();
-                continue;
-            }
-        };
-
-        println!("{}", terminal::Clear(terminal::ClearType::All));
-
-        if telemetry.physics["packetId"] != 0 {
-            if !static_data_initialized {
-                init_vector_statics(&mut blocks, &telemetry.statics);
-                static_data_initialized = true;
-            }
-
-            for block in blocks.iter_mut() {
-                block.update(&telemetry.physics, &telemetry.graphics);
-                block.display();
-            }
-        }
-        else {
-            println!("{}{}", terminal::Clear(terminal::ClearType::All) ,cursor::MoveTo(0,0));
-            println!("Connection established to {}, waiting for data...", server_ip_addr);
-            static_data_initialized = false;
-        }
-
-        heartbeat = send_heartbeat_to_server(&socket, &server_ip_addr, heartbeat);
-        sleep_for_polling_rate();
-    }
+    telemetry_parser.main();
 }
 
 fn get_ip_from_args() -> Option<String> {
@@ -117,31 +213,9 @@ fn terminal_cleanup() {
     crossterm::terminal::disable_raw_mode().unwrap();
 }
 
-fn init_vector_statics(blocks: &mut Vec<Box<dyn TUIBlock>>, statics: &serde_json::Value) {
-    for block in blocks.iter_mut() {
-        block.init_statics(statics);
-    }
-}
-
-fn wait_for_initial_message(socket: &std::net::UdpSocket) {
-    let mut buffer = [0; BUFFER_SIZE];
-    println!("Waiting for connection...");
-    socket.recv(&mut buffer).unwrap();
-    println!("Connection successful!")
-}
-
-fn send_heartbeat_to_server(socket: &std::net::UdpSocket,
-                            ip_addr: &String,
-                            heartbeat: std::time::SystemTime) -> std::time::SystemTime {
-    let current_time = std::time::SystemTime::now();
-    let mut new_heartbeat = heartbeat;
-
-    if current_time.duration_since(heartbeat).unwrap() > HEARTBEAT_DELTA_IN_MS {
-        socket.send_to("I'm alive!".as_bytes(), ip_addr).unwrap();
-        new_heartbeat = current_time;
-    }
-
-    return new_heartbeat;
+fn exit_terminal() {
+    terminal_cleanup();
+    std::process::exit(0);
 }
 
 fn sleep_for(time: u64) {
@@ -152,39 +226,3 @@ fn sleep_for_polling_rate() {
     sleep_for(POLLING_RATE_IN_MS);
 }
 
-fn get_telemetry_from_connection(socket: &std::net::UdpSocket) -> Option<TelemetryData> {
-    let mut buffer = [0; BUFFER_SIZE];
-    let buf_len: usize = match socket.recv(&mut buffer) {
-        Ok(buf_size) => buf_size,
-        Err(e)       => panic!("{}", e)
-    };
-
-    let json_data: serde_json::Value = match serde_json::from_slice(&buffer[0..buf_len]) {
-        Ok(json) => json,
-        Err(_e)   => { return None; }
-    };
-
-    let telemetry = TelemetryData {
-        physics:  json_data["physics_data"].clone(),
-        graphics: json_data["graphics_data"].clone(),
-        statics:  json_data["static_data"].clone()
-    };
-
-    return Some(telemetry);
-}
-
-fn is_event_available() -> bool {
-    event::poll(std::time::Duration::from_millis(0)).unwrap()
-}
-
-fn build_key_event(hotkey: char) -> event::Event {
-    event::Event::Key(event::KeyEvent {
-        code: event::KeyCode::Char(hotkey),
-        modifiers: event::KeyModifiers::NONE
-    })
-}
-
-fn exit_terminal() {
-    terminal_cleanup();
-    std::process::exit(0);
-}

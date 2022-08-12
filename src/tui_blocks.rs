@@ -7,7 +7,8 @@ use crossterm::cursor;
 
 const RED_BLOCK: &str = "\x1b[91;1m▉\x1b[31;0m";
 const WHITE_BLOCK: &str ="▉";
-const RPM_BAR_LEN: usize = 0x10;
+
+const RPM_BAR_LEN: usize = 0x11;
 
 const COLOR_RESET: &str = "\x1b[31;0m";
 
@@ -66,7 +67,7 @@ impl Tachometer {
         print!("{}{}", cursor::MoveTo(self.coords.start_x, self.coords.start_y + 4),
                        tachometer_end);
         
-        if self.rpm_bar[RPM_BAR_LEN - 1] == true {
+        if self.rpm_max < self.rpm_cur || self.rpm_max - self.rpm_cur < 100 {
             for _i in 0..RPM_BAR_LEN - 1 {
                 print!("{}", RED_BLOCK);
             }
@@ -101,7 +102,11 @@ impl TUIBlock for Tachometer {
     }
 
     fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
-        let rpm_cur = physics["rpms"].as_u64().unwrap();
+        let rpm_cur = match physics["rpms"].as_u64() {
+            Some(val) => val,
+            None      => 0
+        };
+
         self.rpm_cur = rpm_cur;
 
         let mut gear_int = physics["gear"].as_u64().unwrap() as u8;
@@ -117,7 +122,7 @@ impl TUIBlock for Tachometer {
                                    self.rpm_max as f32)
                                   * RPM_BAR_LEN as f32).ceil() as usize;
 
-        // May be a better way for this
+        // TODO this may be broken actually
         if rpm_percentage > self.rpm_bar.len() {
             rpm_percentage = self.rpm_bar.len() - 1;
         }
@@ -136,7 +141,7 @@ impl TUIBlock for Tachometer {
             None      => 0 as u64
         }
     }
-}
+} 
 
 pub struct TyreTemps {
     coords: Bounds,
@@ -314,3 +319,4 @@ impl TUIBlock for Thermometer {
         return;
     }
 }
+
