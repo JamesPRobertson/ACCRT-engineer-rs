@@ -7,7 +7,8 @@ use crossterm::cursor;
 
 const RED_BLOCK: &str = "\x1b[91;1m▉\x1b[31;0m";
 const WHITE_BLOCK: &str ="▉";
-const RPM_BAR_LEN: usize = 0x10;
+
+const RPM_BAR_LEN: usize = 0x11;
 
 const COLOR_RESET: &str = "\x1b[31;0m";
 
@@ -66,7 +67,7 @@ impl Tachometer {
         print!("{}{}", cursor::MoveTo(self.coords.start_x, self.coords.start_y + 4),
                        tachometer_end);
         
-        if self.rpm_bar[RPM_BAR_LEN - 1] == true {
+        if self.rpm_max < self.rpm_cur || self.rpm_max - self.rpm_cur < 100 {
             for _i in 0..RPM_BAR_LEN - 1 {
                 print!("{}", RED_BLOCK);
             }
