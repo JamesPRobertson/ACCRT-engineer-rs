@@ -58,7 +58,7 @@ impl TelemetryParser {
             Box::new(tui_blocks::TyreTemps::new(0,6)),
             Box::new(tui_blocks::LapTimes::new(24,0)),
             Box::new(tui_blocks::Thermometer::new(24,6)),
-            Box::new(tui_blocks::BrakeTemps::new(0,16))];
+            Box::new(tui_blocks::BrakeTemps::new(0,12))];
 
         let mut static_data_initialized: bool = false;
 
