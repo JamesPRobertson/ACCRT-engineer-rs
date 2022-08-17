@@ -214,6 +214,57 @@ impl TUIBlock for TyreTemps {
     }
 }
 
+pub struct TyrePressures {
+    coords: Bounds,
+    tyres: [f64; 4] // Tyres going clockwise from front left (0) to rear left (3)
+}
+
+impl TyrePressures {
+    pub fn new(x: u16, y: u16) -> TyrePressures {
+        return TyrePressures {
+            coords: Bounds::new(x, y, 0, 0),
+            tyres: [0 as f64; 4]
+        }
+    }
+
+    fn print_tyre_with_offset(&self, x_offset: u16, y_offset: u16, tyre_index: usize) {
+        println!("{}{:.2}", 
+                 cursor::MoveTo(self.coords.start_x + x_offset,
+                                self.coords.start_y + y_offset),
+                 self.tyres[tyre_index]);
+    }
+}
+
+impl TUIBlock for TyrePressures {
+    fn display(&self) {
+        print!("{}Tyre Pressures (psi):",
+               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+
+        // TODO: Can we iterate over the tyres somehow?
+        //       if we do, the tyres will have to become
+        //       their own structs and know their offsets
+        self.print_tyre_with_offset(2, 1, 0);
+        self.print_tyre_with_offset(8, 1, 1);
+        self.print_tyre_with_offset(8, 3, 2);
+        self.print_tyre_with_offset(2, 3, 3);
+    }
+
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
+        let pressures = match physics["wheelsPressure"].as_array() {
+            Some(arr) => arr,
+            None => { return; }
+        };
+
+        for i in 0..self.tyres.len() {
+            self.tyres[i] = pressures[i].as_f64().unwrap();
+        }
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
+    }
+}
+
 pub struct LapTimes {
     coords: Bounds,
     time_cur: String,
