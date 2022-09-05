@@ -49,7 +49,7 @@ impl Bounds {
 pub struct Tachometer {
     coords: Bounds,
     rpm_cur: u64,
-    rpm_max: u64, // This is public until the static init function is written in main.rs
+    rpm_max: u64,
     rpm_bar: [bool; RPM_BAR_LEN],
     gear_char: u8
 }
@@ -426,8 +426,8 @@ impl TUIBlock for BrakeTemps {
         print!("{}Brake temps:",
                cursor::MoveTo(self.coords.start_x, self.coords.start_y));
 
-        // TODO: Can we iterate over the tyres somehow?
-        //       if we do, the brakes may have to become
+        // TODO: Can we iterate over the wheels somehow?
+        //       if we do, they may have to become
         //       their own structs and know their offsets
         self.print_temp_with_offset(2, 1, 0);
         self.print_temp_with_offset(8, 1, 1);
