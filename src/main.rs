@@ -7,6 +7,7 @@ use crossterm::{ cursor, event, terminal };
 use std::collections::HashMap;
 
 mod tui_blocks;
+
 use crate::tui_blocks::*;
 
 const BUFFER_SIZE: usize = 8192;
@@ -18,31 +19,12 @@ const LISTEN_IP_ADDR_PORT: &str = "0.0.0.0:9001";
 //       TelemetryParser the object
 const POLLING_RATE_IN_MS: u64 = 16; // Roughly 60 Hz
 
-struct NetworkInfo {
-    socket:    std::net::UdpSocket,
-    server_ip: String,
-    _listen_ip: String,
-    heartbeat: std::time::SystemTime
-}
-
-impl NetworkInfo {
-    fn new(listen_ip: String, server_ip: String) -> NetworkInfo {
-        NetworkInfo {
-            //socket: std::net::UdpSocket::bind(&server_ip).unwrap(),
-            socket: std::net::UdpSocket::bind(&listen_ip).unwrap(),
-            server_ip,
-            _listen_ip: listen_ip,
-            heartbeat: std::time::SystemTime::now()
-        }
-    }
-}
-
 struct TelemetryParser {
     physics: serde_json::Value,
     graphics: serde_json::Value,
     statics: serde_json::Value, 
     // Add blocks ?
-    network: NetworkInfo
+    telemetry_source: Box<dyn data_source::DataSource>
 }
 
 impl TelemetryParser {
@@ -125,11 +107,6 @@ impl TelemetryParser {
     }
 
     fn update_telemetry_from_connection(&mut self) -> Result<(), serde_json::Error> {
-        let mut buffer = [0; BUFFER_SIZE];
-        let buf_len: usize = match self.network.socket.recv(&mut buffer) {
-            Ok(buf_size) => buf_size,
-            Err(e)       => panic!("{}", e)
-        };
 
         let json_data: serde_json::Value = serde_json::from_slice(&buffer[0..buf_len])?;
 
@@ -185,6 +162,7 @@ fn main() {
         }
     };
 
+    // TODO telemetry parser must take different sources in here
     let mut telemetry_parser = TelemetryParser::new(String::from(LISTEN_IP_ADDR_PORT), server_ip_addr);
 
     telemetry_parser.preconnect_setup();
