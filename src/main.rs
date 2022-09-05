@@ -50,14 +50,16 @@ impl TelemetryParser {
         // TODO this will have to be rethought with asyncness
         let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
         hotkeys.insert(TelemetryParser::build_key_event('q'), exit_terminal);
-        //
+        // - End
         
-        // This will be built and then destroyed when telemetry source ends
         let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
             Box::new(tui_blocks::Tachometer::new(0,0)),
             Box::new(tui_blocks::TyreTemps::new(0,6)),
             Box::new(tui_blocks::LapTimes::new(24,0)),
-            Box::new(tui_blocks::Thermometer::new(24,6))];
+            Box::new(tui_blocks::Thermometer::new(24,6)),
+            Box::new(tui_blocks::BrakeTemps::new(0,12)),
+            Box::new(tui_blocks::TyrePressures::new(24,12))
+        ];
 
         let mut static_data_initialized: bool = false;
 

@@ -12,16 +12,20 @@ const RPM_BAR_LEN: usize = 0x11;
 
 const COLOR_RESET: &str = "\x1b[31;0m";
 
-const TYRE_COLOR_COLD: &str = "\x1b[96;1m";
-const TYRE_COLOR_OPTIMAL: &str = "\x1b[92;1m";
-const TYRE_COLOR_WARNING: &str = "\x1b[93;1m";
-const TYRE_COLOR_TOO_HOT: &str = "\x1b[91;1m";
+const TEXT_COLOR_COLD: &str = "\x1b[96;1m";
+const TEXT_COLOR_OPTIMAL: &str = "\x1b[92;1m";
+const TEXT_COLOR_WARNING: &str = "\x1b[93;1m";
+const TEXT_COLOR_TOO_HOT: &str = "\x1b[91;1m";
 
-// TODO: These are rough estimates
+// These are rough estimates
 const TYRE_NUM_COLD: f64 = 72.0;
 const TYRE_NUM_OPTIMAL: f64 = 92.0;
 const TYRE_NUM_WARNING: f64 = 100.0;
 
+// Very very rough estimates
+const BRAKE_NUM_COLD: f64 = 475.0;
+const BRAKE_NUM_OPTIMAL: f64 = 650.0;
+const BRAKE_NUM_WARNING: f64 = 675.0;
 
 pub trait TUIBlock {
     fn update(&mut self, physics: &serde_json::Value, graphics: &serde_json::Value);
@@ -45,7 +49,7 @@ impl Bounds {
 pub struct Tachometer {
     coords: Bounds,
     rpm_cur: u64,
-    rpm_max: u64, // This is public until the static init function is written in main.rs
+    rpm_max: u64,
     rpm_bar: [bool; RPM_BAR_LEN],
     gear_char: u8
 }
@@ -159,16 +163,16 @@ impl TyreTemps {
     fn print_tyre_with_offset(&self, x_offset: u16, y_offset: u16, tyre_index: usize) {
         let text_color: &str;
         if self.tyres[tyre_index] < TYRE_NUM_COLD {
-            text_color = TYRE_COLOR_COLD;
+            text_color = TEXT_COLOR_COLD;
         }
         else if self.tyres[tyre_index] < TYRE_NUM_OPTIMAL {
-            text_color = TYRE_COLOR_OPTIMAL;
+            text_color = TEXT_COLOR_OPTIMAL;
         }
         else if self.tyres[tyre_index] < TYRE_NUM_WARNING {
-            text_color = TYRE_COLOR_WARNING;
+            text_color = TEXT_COLOR_WARNING;
         }
         else {
-            text_color = TYRE_COLOR_TOO_HOT;
+            text_color = TEXT_COLOR_TOO_HOT;
         }
 
         println!("{}{}{:.0}{}", 
@@ -202,6 +206,57 @@ impl TUIBlock for TyreTemps {
 
         for i in 0..self.tyres.len() {
             self.tyres[i] = temps[i].as_f64().unwrap();
+        }
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
+    }
+}
+
+pub struct TyrePressures {
+    coords: Bounds,
+    tyres: [f64; 4] // Tyres going clockwise from front left (0) to rear left (3)
+}
+
+impl TyrePressures {
+    pub fn new(x: u16, y: u16) -> TyrePressures {
+        return TyrePressures {
+            coords: Bounds::new(x, y, 0, 0),
+            tyres: [0 as f64; 4]
+        }
+    }
+
+    fn print_tyre_with_offset(&self, x_offset: u16, y_offset: u16, tyre_index: usize) {
+        println!("{}{:.2}", 
+                 cursor::MoveTo(self.coords.start_x + x_offset,
+                                self.coords.start_y + y_offset),
+                 self.tyres[tyre_index]);
+    }
+}
+
+impl TUIBlock for TyrePressures {
+    fn display(&self) {
+        print!("{}Tyre Pressures (psi):",
+               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+
+        // TODO: Can we iterate over the tyres somehow?
+        //       if we do, the tyres will have to become
+        //       their own structs and know their offsets
+        self.print_tyre_with_offset(2, 1, 0);
+        self.print_tyre_with_offset(8, 1, 1);
+        self.print_tyre_with_offset(8, 3, 2);
+        self.print_tyre_with_offset(2, 3, 3);
+    }
+
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
+        let pressures = match physics["wheelsPressure"].as_array() {
+            Some(arr) => arr,
+            None => { return; }
+        };
+
+        for i in 0..self.tyres.len() {
+            self.tyres[i] = pressures[i].as_f64().unwrap();
         }
     }
 
@@ -313,6 +368,82 @@ impl TUIBlock for Thermometer {
         println!("{}Air Temp:   {:.1}",
                  cursor::MoveTo(self.coords.start_x + 2, self.coords.start_y + 2),
                  self.temp_air);
+    }
+
+    fn init_statics(&mut self, _statics: &serde_json::Value) {
+        return;
+    }
+}
+
+pub struct BrakeTemps {
+    coords: Bounds,
+    brakes: [f64; 4]
+}
+
+impl BrakeTemps {
+    pub fn new(x: u16, y: u16) -> BrakeTemps {
+        return BrakeTemps {
+            coords: Bounds::new(x, y, 0, 0),
+            brakes: [0 as f64; 4]
+        }
+    }
+
+    fn print_temp_with_offset(&self, x_offset: u16, y_offset: u16, brake_index: usize) {
+        let text_color: &str;
+        let cur_temp: f64;
+
+        if brake_index > 1 {
+            cur_temp = self.brakes[brake_index] + 200.0;
+        }
+        else {
+            cur_temp = self.brakes[brake_index];
+        }
+
+        if cur_temp < BRAKE_NUM_COLD {
+            text_color = TEXT_COLOR_COLD;
+        }
+        else if cur_temp < BRAKE_NUM_OPTIMAL {
+            text_color = TEXT_COLOR_OPTIMAL;
+        }
+        else if cur_temp < BRAKE_NUM_WARNING {
+            text_color = TEXT_COLOR_WARNING;
+        }
+        else {
+            text_color = TEXT_COLOR_TOO_HOT;
+        }
+
+        println!("{}{}{:.0}{}", 
+                 cursor::MoveTo(self.coords.start_x + x_offset,
+                                self.coords.start_y + y_offset),
+                 text_color,
+                 self.brakes[brake_index],
+                 COLOR_RESET);
+    }
+}
+
+impl TUIBlock for BrakeTemps {
+    fn display(&self) {
+        print!("{}Brake temps:",
+               cursor::MoveTo(self.coords.start_x, self.coords.start_y));
+
+        // TODO: Can we iterate over the wheels somehow?
+        //       if we do, they may have to become
+        //       their own structs and know their offsets
+        self.print_temp_with_offset(2, 1, 0);
+        self.print_temp_with_offset(8, 1, 1);
+        self.print_temp_with_offset(8, 3, 2);
+        self.print_temp_with_offset(2, 3, 3);
+    }
+
+    fn update(&mut self, physics: &serde_json::Value, _graphics: &serde_json::Value) {
+        let temps = match physics["brakeTemp"].as_array() {
+            Some(arr) => arr,
+            None => { return; }
+        };
+
+        for i in 0..self.brakes.len() {
+            self.brakes[i] = temps[i].as_f64().unwrap();
+        }
     }
 
     fn init_statics(&mut self, _statics: &serde_json::Value) {
