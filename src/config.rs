@@ -12,9 +12,21 @@ use std::str::FromStr;
 const CONFIG_FILE_PATH: &str = "src/cfg/options.yaml";
 const CONFIG_FILE_MAX_BUFFER_SIZE: usize = 0x4000; // 64 KB
 
+#[derive(Debug)]
 pub struct HotkeyFunction {
     function: fn(),
     name: String
+}
+
+impl HotkeyFunction {
+    pub fn new(name_str: &str, function: fn()) -> HotkeyFunction {
+        let name: String = String::from(name_str);
+
+        HotkeyFunction {
+            name,
+            function
+        }
+    }
 }
 
 pub fn build_hotkeys(functions: Vec<HotkeyFunction>) -> HashMap<event::Event, fn()> {
@@ -31,7 +43,7 @@ pub fn build_hotkeys(functions: Vec<HotkeyFunction>) -> HashMap<event::Event, fn
 
     // TODO: potential failure cases
     for entry in functions {
-        let hotkey_char = match convert_yaml_str_to_char(&yaml[entry.name]) {
+        let hotkey_char = match convert_yaml_str_to_char(&yaml["hotkeys"][entry.name]) {
             Some(val) => val,
             None => { continue; } // TODO: we should log an error here
         };
@@ -44,8 +56,8 @@ pub fn build_hotkeys(functions: Vec<HotkeyFunction>) -> HashMap<event::Event, fn
 fn convert_yaml_str_to_char(value: &serde_yaml::Value) -> Option<char> {
     let _hotkey_char: char = match value.as_str() {
         Some(val) => match char::from_str(val) {
-            Ok(it) => return Some(it),
-            Err(_) => return None
+            Ok(it) => { return Some(it) },
+            Err(_) => { return None }
         },
         None => { return None }
     };

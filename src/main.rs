@@ -178,6 +178,27 @@ impl TelemetryParser {
 }
 
 fn main() {
+
+    let hotkeyso: Vec<config::HotkeyFunction> = vec![
+        config::HotkeyFunction::new("hotkey_test_w", hotkey_test_w),
+        config::HotkeyFunction::new("hotkey_test_e", hotkey_test_e),
+        config::HotkeyFunction::new("exit_terminal", exit_terminal)
+        
+    ];
+    let hotkey_map = config::build_hotkeys(hotkeyso);
+
+    terminal_setup();
+    
+    loop{ 
+        if TelemetryParser::is_event_available() {
+            match hotkey_map.get(&event::read().unwrap()) {
+                Some(function) => function(),
+                None => { }
+            }
+        }
+    }
+    return;
+
     let server_ip_addr = match get_ip_from_args() {
         Some(val) => val,
         None => {
@@ -193,6 +214,14 @@ fn main() {
     terminal_setup();
 
     telemetry_parser.main();
+}
+
+fn hotkey_test_w() {
+    println!("W pressed!");
+}
+
+fn hotkey_test_e() {
+    println!("E pressed!");
 }
 
 fn get_ip_from_args() -> Option<String> {
