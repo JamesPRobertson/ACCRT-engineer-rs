@@ -7,6 +7,7 @@ use crossterm::{ cursor, event, terminal };
 use std::collections::HashMap;
 
 mod tui_blocks;
+mod config;
 use crate::tui_blocks::*;
 
 const BUFFER_SIZE: usize = 8192;
