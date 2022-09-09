@@ -220,8 +220,8 @@ fn exit_terminal() {
     std::process::exit(0);
 }
 
-fn _switch_blocks_view() {
-
+fn switch_blocks_view() {
+    return
 }
 
 fn sleep_for(time: u64) {
