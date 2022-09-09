@@ -8,4 +8,5 @@ edition = "2018"
 [dependencies]
 crossterm = "0.24.0"
 serde_json = "*"
+serde_yaml = "0.9.11"
 tui = "0.18.0"

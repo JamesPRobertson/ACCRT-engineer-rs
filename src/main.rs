@@ -28,7 +28,6 @@ struct NetworkInfo {
 impl NetworkInfo {
     fn new(listen_ip: String, server_ip: String) -> NetworkInfo {
         NetworkInfo {
-            //socket: std::net::UdpSocket::bind(&server_ip).unwrap(),
             socket: std::net::UdpSocket::bind(&listen_ip).unwrap(),
             server_ip,
             _listen_ip: listen_ip,
@@ -46,6 +45,7 @@ struct TelemetryParser {
 }
 
 impl TelemetryParser {
+    // TODO: Consider making this non looping
     fn main(&mut self) {
         // TODO this will have to be rethought with asyncness
         let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
@@ -218,6 +218,10 @@ fn terminal_cleanup() {
 fn exit_terminal() {
     terminal_cleanup();
     std::process::exit(0);
+}
+
+fn _switch_blocks_view() {
+
 }
 
 fn sleep_for(time: u64) {

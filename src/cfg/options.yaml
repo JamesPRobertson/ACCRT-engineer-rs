@@ -1,0 +1,7 @@
+hotkeys:
+  exit_terminal: q
+  switch_blocks_view: a
+
+blocks:
+  tyre_temperature:
+    active: true
