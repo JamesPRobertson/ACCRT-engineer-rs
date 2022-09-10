@@ -4,7 +4,6 @@
 //
 
 use crossterm::{ cursor, event, terminal };
-use std::collections::HashMap;
 
 mod tui_blocks;
 mod config;
@@ -48,11 +47,18 @@ struct TelemetryParser {
 impl TelemetryParser {
     // TODO: Consider making this non looping
     fn main(&mut self) {
+        /*
         // TODO this will have to be rethought with asyncness
         let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
         hotkeys.insert(TelemetryParser::build_key_event('q'), exit_terminal);
         // - End
+        */
         
+        let function_map: Vec<config::HotkeyFunction> = vec![
+            config::HotkeyFunction::new("exit_terminal", exit_terminal)
+        ];
+        let hotkeys = config::build_hotkeys(function_map);
+
         let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
             Box::new(tui_blocks::Tachometer::new(0,0)),
             Box::new(tui_blocks::TyreTemps::new(0,6)),
@@ -169,36 +175,9 @@ impl TelemetryParser {
         event::poll(std::time::Duration::from_millis(0)).unwrap()
     }
 
-    fn build_key_event(hotkey: char) -> event::Event {
-        event::Event::Key(event::KeyEvent {
-            code: event::KeyCode::Char(hotkey),
-            modifiers: event::KeyModifiers::NONE
-        })
-    }
 }
 
 fn main() {
-
-    let hotkeyso: Vec<config::HotkeyFunction> = vec![
-        config::HotkeyFunction::new("hotkey_test_w", hotkey_test_w),
-        config::HotkeyFunction::new("hotkey_test_e", hotkey_test_e),
-        config::HotkeyFunction::new("exit_terminal", exit_terminal)
-        
-    ];
-    let hotkey_map = config::build_hotkeys(hotkeyso);
-
-    terminal_setup();
-    
-    loop{ 
-        if TelemetryParser::is_event_available() {
-            match hotkey_map.get(&event::read().unwrap()) {
-                Some(function) => function(),
-                None => { }
-            }
-        }
-    }
-    return;
-
     let server_ip_addr = match get_ip_from_args() {
         Some(val) => val,
         None => {
@@ -214,14 +193,6 @@ fn main() {
     terminal_setup();
 
     telemetry_parser.main();
-}
-
-fn hotkey_test_w() {
-    println!("W pressed!");
-}
-
-fn hotkey_test_e() {
-    println!("E pressed!");
 }
 
 fn get_ip_from_args() -> Option<String> {
@@ -250,7 +221,7 @@ fn exit_terminal() {
     std::process::exit(0);
 }
 
-fn switch_blocks_view() {
+fn _switch_blocks_view() {
     return
 }
 
