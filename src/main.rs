@@ -47,17 +47,12 @@ struct TelemetryParser {
 impl TelemetryParser {
     // TODO: Consider making this non looping
     fn main(&mut self) {
-        /*
-        // TODO this will have to be rethought with asyncness
-        let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
-        hotkeys.insert(TelemetryParser::build_key_event('q'), exit_terminal);
-        // - End
-        */
-        
+        // TODO: We must think this through with async
         let function_map: Vec<config::HotkeyFunction> = vec![
             config::HotkeyFunction::new("exit_terminal", exit_terminal)
         ];
         let hotkeys = config::build_hotkeys(function_map);
+        // - to here
 
         let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
             Box::new(tui_blocks::Tachometer::new(0,0)),

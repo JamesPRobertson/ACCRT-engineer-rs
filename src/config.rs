@@ -12,7 +12,6 @@ use std::str::FromStr;
 const CONFIG_FILE_PATH: &str = "src/cfg/options.yaml";
 const CONFIG_FILE_MAX_BUFFER_SIZE: usize = 0x4000; // 64 KB
 
-#[derive(Debug)]
 pub struct HotkeyFunction {
     function: fn(),
     name: String
@@ -69,7 +68,6 @@ fn load_yaml_file() -> Result<serde_yaml::Value, Box<dyn Error>> {
     let mut buffer = [0; CONFIG_FILE_MAX_BUFFER_SIZE];
     let buf_len = in_file.read(&mut buffer)?;
 
-    // lol idk if this line works :^)
     let yaml: serde_yaml::Value =serde_yaml::from_slice(&buffer[0..buf_len])?;
 
     Ok(yaml)

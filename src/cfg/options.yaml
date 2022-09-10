@@ -1,8 +1,5 @@
 hotkeys:
   exit_terminal: q
-  switch_blocks_view: a
-  hotkey_test_w: w
-  hotkey_test_e: e
 
 blocks:
   tyre_temperature:
