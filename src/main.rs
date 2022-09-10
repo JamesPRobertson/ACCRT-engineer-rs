@@ -4,6 +4,7 @@
 //
 
 use crossterm::{ cursor, event, terminal };
+use std::collections::HashMap;
 
 mod tui_blocks;
 mod config;
@@ -41,28 +42,17 @@ struct TelemetryParser {
     graphics: serde_json::Value,
     statics: serde_json::Value, 
     blocks: Vec<Box<dyn TUIBlock>>,
+    hotkeys: HashMap<event::Event, fn()>,
     network: NetworkInfo
 }
 
 impl TelemetryParser {
     // TODO: Consider making this non looping
     fn main(&mut self) {
-        // TODO: We must think this through with async
-        let function_map: Vec<config::HotkeyFunction> = vec![
-            config::HotkeyFunction::new("exit_terminal", exit_terminal)
-        ];
-        let hotkeys = config::build_hotkeys(function_map);
-        // - to here
-
         let mut static_data_initialized: bool = false;
 
         loop {
-            if TelemetryParser::is_event_available() {
-                match hotkeys.get(&event::read().unwrap()) {
-                    Some(function) => function(),
-                    None => { }
-                }
-            }
+            self.handle_keypress();
 
             match self.update_telemetry_from_connection() {
                 Ok(()) => { },
@@ -103,6 +93,7 @@ impl TelemetryParser {
             graphics: serde_json::Value::Null,
             statics: serde_json::Value::Null,
             blocks: TelemetryParser::generate_blocks(),
+            hotkeys: TelemetryParser::generate_hotkeys_from_config(),
             network: NetworkInfo::new(listen_ip_addr, server_ip_addr)
         }
     }
@@ -118,6 +109,23 @@ impl TelemetryParser {
         ];
 
         return blocks;
+    }
+
+    fn generate_hotkeys_from_config() -> HashMap<event::Event, fn()> {
+        let function_map: Vec<config::HotkeyFunction> = vec![
+            config::HotkeyFunction::new("exit_terminal", exit_terminal)
+        ];
+
+        return config::build_hotkeys(function_map);
+    }
+
+    fn handle_keypress(&self) {
+        if TelemetryParser::is_event_available() {
+            match self.hotkeys.get(&event::read().unwrap()) {
+                Some(function) => function(),
+                None => { }
+            }
+        }
     }
 
     fn preconnect_setup(&self) {
@@ -174,7 +182,6 @@ impl TelemetryParser {
     fn is_event_available() -> bool {
         event::poll(std::time::Duration::from_millis(0)).unwrap()
     }
-
 }
 
 fn main() {
