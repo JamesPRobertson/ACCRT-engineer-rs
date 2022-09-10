@@ -40,7 +40,7 @@ struct TelemetryParser {
     physics: serde_json::Value,
     graphics: serde_json::Value,
     statics: serde_json::Value, 
-    // Add blocks ?
+    blocks: Vec<Box<dyn TUIBlock>>,
     network: NetworkInfo
 }
 
@@ -53,15 +53,6 @@ impl TelemetryParser {
         ];
         let hotkeys = config::build_hotkeys(function_map);
         // - to here
-
-        let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
-            Box::new(tui_blocks::Tachometer::new(0,0)),
-            Box::new(tui_blocks::TyreTemps::new(0,6)),
-            Box::new(tui_blocks::LapTimes::new(24,0)),
-            Box::new(tui_blocks::Thermometer::new(24,6)),
-            Box::new(tui_blocks::BrakeTemps::new(0,12)),
-            Box::new(tui_blocks::TyrePressures::new(24,12))
-        ];
 
         let mut static_data_initialized: bool = false;
 
@@ -86,11 +77,11 @@ impl TelemetryParser {
             // TODO instead of this, we need to know when we are actually getting good data
             if self.physics["packetId"] != 0 {
                 if !static_data_initialized {
-                    self.init_vector_statics(&mut blocks);
+                    self.init_vector_statics();
                     static_data_initialized = true;
                 }
 
-                for block in blocks.iter_mut() {
+                for block in self.blocks.iter_mut() {
                     block.update(&self.physics, &self.graphics);
                     block.display();
                 }
@@ -111,8 +102,22 @@ impl TelemetryParser {
             physics: serde_json::Value::Null,
             graphics: serde_json::Value::Null,
             statics: serde_json::Value::Null,
+            blocks: TelemetryParser::generate_blocks(),
             network: NetworkInfo::new(listen_ip_addr, server_ip_addr)
         }
+    }
+
+    fn generate_blocks() -> Vec<Box<dyn TUIBlock>> {
+        let blocks: Vec<Box<dyn TUIBlock>> = vec![
+            Box::new(tui_blocks::Tachometer::new(0,0)),
+            Box::new(tui_blocks::TyreTemps::new(0,6)),
+            Box::new(tui_blocks::LapTimes::new(24,0)),
+            Box::new(tui_blocks::Thermometer::new(24,6)),
+            Box::new(tui_blocks::BrakeTemps::new(0,12)),
+            Box::new(tui_blocks::TyrePressures::new(24,12))
+        ];
+
+        return blocks;
     }
 
     fn preconnect_setup(&self) {
@@ -152,8 +157,8 @@ impl TelemetryParser {
         }
     }
 
-    fn init_vector_statics(&self, blocks: &mut Vec<Box<dyn TUIBlock>>) {
-        for block in blocks.iter_mut() {
+    fn init_vector_statics(&mut self) {
+        for block in self.blocks.iter_mut() {
             block.init_statics(&self.statics);
         }
     }
