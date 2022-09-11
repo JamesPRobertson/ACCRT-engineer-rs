@@ -1,0 +1,22 @@
+hotkeys:
+  exit_terminal: q
+
+blocks:
+  tyre_temperature:
+    active: true
+
+custom_blocks:
+  format_example:
+    active: true
+    start_x: 0
+    start_y: 0
+    physics_keys:
+      - example_1
+      - example_2
+    graphics_keys:
+      - example_3
+      - example_4
+    format_str: |
+      Custom Block
+        {example_1}
+        {example_2}

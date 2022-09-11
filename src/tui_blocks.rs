@@ -38,11 +38,12 @@ pub struct Bounds {
     start_y: u16,
     _len_x: u32,
     _len_y: u32,
+    _visible: bool
 }
 
 impl Bounds {
     pub fn new(start_x: u16, start_y: u16, _len_x: u32, _len_y: u32) -> Bounds {
-        Bounds {start_x, start_y, _len_x, _len_y}
+        Bounds {start_x, start_y, _len_x, _len_y, _visible: true}
     }
 }
 

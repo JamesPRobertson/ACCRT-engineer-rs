@@ -7,6 +7,7 @@ use crossterm::{ cursor, event, terminal };
 use std::collections::HashMap;
 
 mod tui_blocks;
+mod config;
 use crate::tui_blocks::*;
 
 const BUFFER_SIZE: usize = 8192;
@@ -28,7 +29,6 @@ struct NetworkInfo {
 impl NetworkInfo {
     fn new(listen_ip: String, server_ip: String) -> NetworkInfo {
         NetworkInfo {
-            //socket: std::net::UdpSocket::bind(&server_ip).unwrap(),
             socket: std::net::UdpSocket::bind(&listen_ip).unwrap(),
             server_ip,
             _listen_ip: listen_ip,
@@ -41,35 +41,18 @@ struct TelemetryParser {
     physics: serde_json::Value,
     graphics: serde_json::Value,
     statics: serde_json::Value, 
-    // Add blocks ?
+    blocks: Vec<Box<dyn TUIBlock>>,
+    hotkeys: HashMap<event::Event, fn()>,
     network: NetworkInfo
 }
 
 impl TelemetryParser {
+    // TODO: Consider making this non looping
     fn main(&mut self) {
-        // TODO this will have to be rethought with asyncness
-        let mut hotkeys: HashMap<event::Event, fn()> = HashMap::new();
-        hotkeys.insert(TelemetryParser::build_key_event('q'), exit_terminal);
-        // - End
-        
-        let mut blocks: Vec<Box<dyn TUIBlock>> = vec![
-            Box::new(tui_blocks::Tachometer::new(0,0)),
-            Box::new(tui_blocks::TyreTemps::new(0,6)),
-            Box::new(tui_blocks::LapTimes::new(24,0)),
-            Box::new(tui_blocks::Thermometer::new(24,6)),
-            Box::new(tui_blocks::BrakeTemps::new(0,12)),
-            Box::new(tui_blocks::TyrePressures::new(24,12))
-        ];
-
         let mut static_data_initialized: bool = false;
 
         loop {
-            if TelemetryParser::is_event_available() {
-                match hotkeys.get(&event::read().unwrap()) {
-                    Some(function) => function(),
-                    None => { }
-                }
-            }
+            self.handle_keypress();
 
             match self.update_telemetry_from_connection() {
                 Ok(()) => { },
@@ -84,11 +67,11 @@ impl TelemetryParser {
             // TODO instead of this, we need to know when we are actually getting good data
             if self.physics["packetId"] != 0 {
                 if !static_data_initialized {
-                    self.init_vector_statics(&mut blocks);
+                    self.init_vector_statics();
                     static_data_initialized = true;
                 }
 
-                for block in blocks.iter_mut() {
+                for block in self.blocks.iter_mut() {
                     block.update(&self.physics, &self.graphics);
                     block.display();
                 }
@@ -109,7 +92,39 @@ impl TelemetryParser {
             physics: serde_json::Value::Null,
             graphics: serde_json::Value::Null,
             statics: serde_json::Value::Null,
+            blocks: TelemetryParser::generate_blocks(),
+            hotkeys: TelemetryParser::generate_hotkeys_from_config(),
             network: NetworkInfo::new(listen_ip_addr, server_ip_addr)
+        }
+    }
+
+    fn generate_blocks() -> Vec<Box<dyn TUIBlock>> {
+        let blocks: Vec<Box<dyn TUIBlock>> = vec![
+            Box::new(tui_blocks::Tachometer::new(0,0)),
+            Box::new(tui_blocks::TyreTemps::new(0,6)),
+            Box::new(tui_blocks::LapTimes::new(24,0)),
+            Box::new(tui_blocks::Thermometer::new(24,6)),
+            Box::new(tui_blocks::BrakeTemps::new(0,12)),
+            Box::new(tui_blocks::TyrePressures::new(24,12))
+        ];
+
+        return blocks;
+    }
+
+    fn generate_hotkeys_from_config() -> HashMap<event::Event, fn()> {
+        let function_map: Vec<config::HotkeyFunction> = vec![
+            config::HotkeyFunction::new("exit_terminal", exit_terminal)
+        ];
+
+        return config::build_hotkeys(function_map);
+    }
+
+    fn handle_keypress(&self) {
+        if TelemetryParser::is_event_available() {
+            match self.hotkeys.get(&event::read().unwrap()) {
+                Some(function) => function(),
+                None => { }
+            }
         }
     }
 
@@ -150,8 +165,8 @@ impl TelemetryParser {
         }
     }
 
-    fn init_vector_statics(&self, blocks: &mut Vec<Box<dyn TUIBlock>>) {
-        for block in blocks.iter_mut() {
+    fn init_vector_statics(&mut self) {
+        for block in self.blocks.iter_mut() {
             block.init_statics(&self.statics);
         }
     }
@@ -166,13 +181,6 @@ impl TelemetryParser {
 
     fn is_event_available() -> bool {
         event::poll(std::time::Duration::from_millis(0)).unwrap()
-    }
-
-    fn build_key_event(hotkey: char) -> event::Event {
-        event::Event::Key(event::KeyEvent {
-            code: event::KeyCode::Char(hotkey),
-            modifiers: event::KeyModifiers::NONE
-        })
     }
 }
 
@@ -218,6 +226,10 @@ fn terminal_cleanup() {
 fn exit_terminal() {
     terminal_cleanup();
     std::process::exit(0);
+}
+
+fn _switch_blocks_view() {
+    return
 }
 
 fn sleep_for(time: u64) {
